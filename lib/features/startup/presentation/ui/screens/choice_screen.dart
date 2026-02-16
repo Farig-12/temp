@@ -39,8 +39,7 @@ class ChoiceScreen extends ConsumerWidget {
                     icon: Icons.build_circle_outlined,
                     label: 'Mechanics',
                     onTap: () {
-                      // <-- FIX 2: Removed undefined 'getRoutePath' function
-                      route.push(getRoutePath(loginRoute));
+                      route.push(getRoutePath(mechanicSignupRoute));
                     },
                   ),
                   const SizedBox(width: 20),
@@ -49,21 +48,10 @@ class ChoiceScreen extends ConsumerWidget {
                     icon: Icons.person_outline,
                     label: 'Client',
                     onTap: () {
-
-                      route.push(getRoutePath(loginRoute));
+                      route.push(getRoutePath(userSignupRoute));
                     },
                   ),
                 ],
-              ),
-              const SizedBox(height: 20),
-              _buildChoiceButton(
-                context: context,
-                icon: Icons.admin_panel_settings_outlined,
-                label: 'Admin',
-                onTap: () {
-                  // <-- FIX 2: Removed undefined 'getRoutePath' function
-                  route.push(getRoutePath(loginRoute));
-                },
               ),
             ],
           ),

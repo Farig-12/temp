@@ -5,6 +5,7 @@ import 'package:mendlify/core/utils/theme/app_colors.dart';
 import '../../../../../core/route/go_router_provider.dart';
 import '../../../../../core/route/route_names.dart';
 import '../../../../../core/utils/image_resources.dart';
+import '../../../../../core/providers/onboarding_provider.dart';
 import '../../../../../shared/widgets/app_background.dart';
 import '../../../../../shared/widgets/app_image.dart';
 
@@ -104,9 +105,11 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                 child: SizedBox(
                   width: 311,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (_currentPage == _pages.length - 1) {
-                        route.push(getRoutePath(choiceRoute));
+                        // Mark onboarding as seen when finishing
+                        await ref.read(markOnboardingSeenProvider)();
+                        route.push(getRoutePath(loginRoute));
                       } else {
                         _pageController.nextPage(
                           duration: const Duration(milliseconds: 400),
@@ -154,7 +157,11 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () => route.push(getRoutePath(choiceRoute)),
+                onTap: () async {
+                  // Mark onboarding as seen when skipping
+                  await ref.read(markOnboardingSeenProvider)();
+                  route.push(getRoutePath(loginRoute));
+                },
                 child: const Padding(
                   padding: EdgeInsets.only(top: 10, bottom: 25),
                   child: Text(

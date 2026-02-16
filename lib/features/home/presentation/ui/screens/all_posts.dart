@@ -1,49 +1,163 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mendlify/core/utils/theme/app_colors.dart';
-import 'package:mendlify/core/utils/image_resources.dart'; // Placeholder for your images
-import 'package:mendlify/shared/widgets/app_image.dart';
+//import 'package:mendlify/core/utils/image_resources.dart';
+//import 'package:mendlify/shared/widgets/app_image.dart';
+import 'package:mendlify/core/providers/posts_providers.dart';
+import 'package:mendlify/shared/models/post.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
+import '../../../../../core/providers/home_providers.dart';
 
 import '../../../../../core/route/go_router_provider.dart';
 import '../../../../../core/route/route_names.dart';
 
-class AllPostsScreen extends ConsumerWidget {
+class AllPostsScreen extends ConsumerStatefulWidget {
   const AllPostsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final route = ref.watch(goRouterProvider);
+  ConsumerState<AllPostsScreen> createState() => _AllPostsScreenState();
+}
 
-    final posts = [
-      {
-        'image': fatimaImagePath, // Replace with actual user image
-        'title': 'After heavy rain, the bike refused to start. The self-start...',
-        'author': 'Rizwan Ahmed',
-        'rating': 5,
-        'comments': 1872,
-      },
-      {
-        'image': fatimaImagePath, // Replace with actual user image
-        'title': 'My bike is making a weird rattling sound near the engine...',
-        'author': 'Anas Tanweer',
-        'rating': 5,
-        'comments': 1872,
-      },
-      {
-        'image': fatimaImagePath, // Replace with actual user image
-        'title': 'Best way to clean a rusty chain? Looking for DIY hacks...',
-        'author': 'Fatima Waseem',
-        'rating': 5,
-        'comments': 1872,
-      },
-      {
-        'image': fatimaImagePath, // Replace with actual user image
-        'title': 'Any recommendations for long-distance touring tires?',
-        'author': 'Abdullah Mohsin Ali',
-        'rating': 5,
-        'comments': 1872,
-      },
-    ];
+class _AllPostsScreenState extends ConsumerState<AllPostsScreen> {
+  final Map<String, TextEditingController> _commentControllers = {};
+  final Map<String, FocusNode> _commentFocusNodes = {};
+
+  @override
+  void dispose() {
+    for (var controller in _commentControllers.values) {
+      controller.dispose();
+    }
+    for (var focusNode in _commentFocusNodes.values) {
+      focusNode.dispose();
+    }
+    super.dispose();
+  }
+
+  TextEditingController _getCommentController(String postId) {
+    if (!_commentControllers.containsKey(postId)) {
+      _commentControllers[postId] = TextEditingController();
+    }
+    return _commentControllers[postId]!;
+  }
+
+  FocusNode _getCommentFocusNode(String postId) {
+    if (!_commentFocusNodes.containsKey(postId)) {
+      _commentFocusNodes[postId] = FocusNode();
+    }
+    return _commentFocusNodes[postId]!;
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) {
+          return 'Just now';
+        }
+        return '${difference.inMinutes} minute(s) ago';
+      }
+      return '${difference.inHours} hour(s) ago';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} day(s) ago';
+    } else {
+      return DateFormat('MMM d, y').format(date);
+    }
+  }
+
+  bool _isLikedByCurrentUser(Post post) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return false;
+    return post.likes.any((like) => like.userId == currentUserId);
+  }
+
+  Future<void> _toggleLike(Post post) async {
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
+      final postNotifier = ref.read(postStateProvider(post.id).notifier);
+      final postState = ref.read(postStateProvider(post.id));
+
+      // update the UI
+      final updatedLikes = List<Like>.from(postState.likes);
+      if (_isLikedByCurrentUser(postState)) {
+        updatedLikes.removeWhere((like) => like.userId == currentUserId);
+      } else {
+        updatedLikes.add(Like(userId: currentUserId, likedAt: DateTime.now()));
+      }
+
+      postNotifier.updateLikes(updatedLikes);
+
+      // Call backend
+      await ref.read(toggleLikeProvider(post.id).future);
+
+      // Invalidate ALL posts; immediately refresh
+      ref.invalidate(postProvider(post.id));
+      ref.invalidate(allPostsProvider);
+      ref.invalidate(myPostsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _addComment(String postId) async {
+    final controller = _getCommentController(postId);
+    if (controller.text.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      await ref.read(addCommentProvider({
+        'postId': postId,
+        'comment': controller.text.trim(),
+      }).future);
+
+      // Clear comment field
+      controller.clear();
+      _getCommentFocusNode(postId).unfocus();
+
+      // Invalidate ALL posts; immediately refresh
+      ref.invalidate(postProvider(postId));
+      ref.invalidate(allPostsProvider);
+      ref.invalidate(myPostsProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Comment added successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final route = ref.watch(goRouterProvider);
+    final postsAsync = ref.watch(allPostsProvider);
+
     return MediaQuery.removePadding(
       context: context,
       removeTop: true,
@@ -52,14 +166,14 @@ class AllPostsScreen extends ConsumerWidget {
           Column(
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: 20.0, left: 16.0, right: 16.0),
+                padding:
+                    const EdgeInsets.only(top: 20.0, left: 16.0, right: 16.0),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: appMainTextColor),
+                      icon:
+                          const Icon(Icons.arrow_back, color: appMainTextColor),
                       onPressed: () {
-                        // This will be handled by your MainHomeScreen's back logic
-                        // Or, if this screen was pushed, pop it:
                         if (route.canPop()) {
                           route.pop();
                         }
@@ -81,47 +195,83 @@ class AllPostsScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: appCardColor.withOpacity(0.8), // <-- Added opacity
-                    borderRadius: BorderRadius.circular(20.0),
-                  ),
-                  child: const TextField(
-                    style: TextStyle(color: appMainTextColor),
-                    decoration: InputDecoration(
-                      hintText: 'Search issue...',
-                      hintStyle: TextStyle(color: appTextColor), // <-- Corrected color
-                      prefixIcon: Icon(Icons.search, color: appTextColor), // <-- Corrected color
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 12.0),
-                    ),
-                  ),
-                ),
-              ),
               const SizedBox(height: 20),
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  itemCount: posts.length,
-                  itemBuilder: (context, index) {
-                    final post = posts[index];
-                    return _PostCard(
-                      imagePath: post['image'] as String,
-                      title: post['title'] as String,
-                      author: post['author'] as String,
-                      rating: post['rating'] as int,
-                      comments: post['comments'] as int,
-                      onTap: () {
-                        // --- NAVIGATION ADDED ---
-                        // You might also want to pass the post ID or data
-                        // route.push(getRoutePath(postDetailRoute), extra: post);
-                        route.push(getRoutePath(postDetailRoute));
+                child: postsAsync.when(
+                  data: (posts) {
+                    if (posts.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'No posts available',
+                          style: TextStyle(color: appTextColor),
+                        ),
+                      );
+                    }
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        ref.invalidate(allPostsProvider);
                       },
+                      color: appButtonColor,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        itemCount: posts.length,
+                        itemBuilder: (context, index) {
+                          final post = posts[index];
+                          final postState =
+                              ref.watch(postStateProvider(post.id));
+                          final isLiked = _isLikedByCurrentUser(postState);
+                          final commentController =
+                              _getCommentController(post.id);
+                          final commentFocusNode =
+                              _getCommentFocusNode(post.id);
+                          final showCommentInput = commentFocusNode.hasFocus;
+
+                          return _PostCard(
+                            post: postState,
+                            isLiked: isLiked,
+                            formatDate: _formatDate,
+                            onLike: () => _toggleLike(postState),
+                            onCommentTap: () {
+                              commentFocusNode.requestFocus();
+                            },
+                            onPostTap: () {
+                              route.push(
+                                getRoutePath(postDetailRoute),
+                                extra: post.id,
+                              );
+                            },
+                            commentController: commentController,
+                            commentFocusNode: commentFocusNode,
+                            showCommentInput: showCommentInput,
+                            onCommentSubmit: () => _addComment(post.id),
+                          );
+                        },
+                      ),
                     );
                   },
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(appButtonColor),
+                    ),
+                  ),
+                  error: (error, stackTrace) => Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Error loading posts',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            ref.invalidate(allPostsProvider);
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -130,7 +280,9 @@ class AllPostsScreen extends ConsumerWidget {
             bottom: 20.0,
             right: 20.0,
             child: FloatingActionButton(
-              onPressed: () {},
+              onPressed: () {
+                route.push(getRoutePath(createPostRoute));
+              },
               backgroundColor: appButtonColor,
               child: const Icon(Icons.add, color: Colors.white, size: 30),
             ),
@@ -141,93 +293,285 @@ class AllPostsScreen extends ConsumerWidget {
   }
 }
 
-class _PostCard extends StatelessWidget {
-  final String imagePath;
-  final String title;
-  final String author;
-  final int rating;
-  final int comments;
-  final VoidCallback onTap; // <-- Added onTap
+class _PostCard extends ConsumerWidget {
+  final Post post;
+  final bool isLiked;
+  final String Function(DateTime) formatDate;
+  final VoidCallback onLike;
+  final VoidCallback onCommentTap;
+  final VoidCallback onPostTap;
+  final TextEditingController commentController;
+  final FocusNode commentFocusNode;
+  final bool showCommentInput;
+  final VoidCallback onCommentSubmit;
 
-  const _PostCard({
-    required this.imagePath,
-    required this.title,
-    required this.author,
-    required this.rating,
-    required this.comments,
-    required this.onTap, // <-- Added onTap
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell( // <-- Wrapped in InkWell
-      onTap: onTap, // <-- Added onTap functionality
-      borderRadius: BorderRadius.circular(15.0),
-      child: Container(
-        padding: const EdgeInsets.all(16.0),
-        margin: const EdgeInsets.only(bottom: 16.0),
-        decoration: BoxDecoration(
-          color: appCardColor,
-          borderRadius: BorderRadius.circular(15.0),
-        ),
-        child: Row(
-          children: [
-            ClipOval(
-              child: AppImage(
-                path: imagePath,
-                width: 60,
-                height: 60,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Post Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: appMainTextColor,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    author,
-                    style: const TextStyle(
-                      color: appTextColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.yellow, size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        rating.toString(),
-                        style: const TextStyle(color: appTextColor, fontSize: 13),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '|   ${comments.toString()} Comments',
-                        style: const TextStyle(color: appTextColor, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+  Widget _buildDefaultAvatar(String displayName) {
+    final initials =
+        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
   }
-}
 
+  Widget _buildLoadingIndicator() {
+    return const SizedBox(
+      width: 50,
+      height: 50,
+      child: Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Colors.grey,
+        ),
+      ),
+    );
+  }
+
+  const _PostCard({
+    required this.post,
+    required this.isLiked,
+    required this.formatDate,
+    required this.onLike,
+    required this.onCommentTap,
+    required this.onPostTap,
+    required this.commentController,
+    required this.commentFocusNode,
+    required this.showCommentInput,
+    required this.onCommentSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userProfileAsync = ref.watch(userProfileProvider(post.userId));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20.0),
+      decoration: BoxDecoration(
+        color: appCardColor,
+        borderRadius: BorderRadius.circular(15.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Post Header
+          InkWell(
+            onTap: onPostTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // Profile Image
+                      ClipOval(
+                        child: userProfileAsync.when(
+                          data: (data) {
+                            final profileUrl = data['profilePicUrl'] as String?;
+
+                            if (profileUrl != null && profileUrl.isNotEmpty) {
+                              return Image.network(
+                                profileUrl,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                gaplessPlayback: true,
+                                errorBuilder: (context, error, stackTrace) {
+                                  debugPrint(
+                                      'Error loading profile image: $error');
+                                  return _buildDefaultAvatar(
+                                      data['name'] as String? ?? 'U');
+                                },
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return _buildLoadingIndicator();
+                                },
+                              );
+                            }
+                            return _buildDefaultAvatar(
+                                data['name'] as String? ?? 'U');
+                          },
+                          loading: _buildLoadingIndicator,
+                          error: (error, stackTrace) {
+                            debugPrint('Error loading user profile: $error');
+                            return _buildDefaultAvatar('U');
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              post.username,
+                              style: const TextStyle(
+                                color: appMainTextColor,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              formatDate(post.createdAt),
+                              style: const TextStyle(
+                                color: appTextColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Post Content
+                  Text(
+                    post.content,
+                    style: const TextStyle(
+                      color: appMainTextColor,
+                      fontSize: 15,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Like & Comment Actions
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                InkWell(
+                  onTap: onLike,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 8.0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                          color: isLiked ? appButtonColor : appTextColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          post.likes.length.toString(),
+                          style: TextStyle(
+                            color: isLiked ? appButtonColor : appTextColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                InkWell(
+                  onTap: onCommentTap,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 8.0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.comment_outlined,
+                          color: commentFocusNode.hasFocus
+                              ? appButtonColor
+                              : appTextColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          post.comments.length.toString(),
+                          style: TextStyle(
+                            color: commentFocusNode.hasFocus
+                                ? appButtonColor
+                                : appTextColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: onPostTap,
+                  child: Text(
+                    'View all comments',
+                    style: TextStyle(
+                      color: appButtonColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Comment Input
+          if (showCommentInput)
+            Container(
+              margin: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: appCardColor.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12.0),
+                border: Border.all(color: appButtonColor.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: commentController,
+                      focusNode: commentFocusNode,
+                      style: const TextStyle(color: appMainTextColor),
+                      decoration: InputDecoration(
+                        hintText: 'Write a comment...',
+                        hintStyle: const TextStyle(color: appTextColor),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
+                      onSubmitted: (_) => onCommentSubmit(),
+                      maxLines: null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: appButtonColor),
+                    onPressed: onCommentSubmit,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}

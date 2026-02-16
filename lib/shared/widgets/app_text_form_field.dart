@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:mendlify/core/utils/theme/app_colors.dart';
+import 'package:flutter/services.dart';
 
 class AppTextFormField extends StatelessWidget {
   const AppTextFormField({
     super.key,
     required this.controller,
-    required this.focusNode,
+    this.focusNode,
     this.onChanged,
+    this.onSubmitted,
     this.validator,
     this.textInputAction,
     this.hint,
@@ -15,11 +17,15 @@ class AppTextFormField extends StatelessWidget {
     this.suffixIcon,
     this.prefixIcon,
     this.enabled,
+    this.keyboardType,
+    this.inputFormatters,
+    this.onTap,
   });
 
   final TextEditingController controller;
-  final FocusNode focusNode;
+  final FocusNode? focusNode; // ← made optional
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final String? Function(String?)? validator;
   final TextInputAction? textInputAction;
   final String? hint;
@@ -28,15 +34,21 @@ class AppTextFormField extends StatelessWidget {
   final Widget? suffixIcon;
   final Widget? prefixIcon;
   final bool? enabled;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
-      focusNode: focusNode,
+      focusNode: focusNode, // ← safe now
       onChanged: onChanged,
+      onFieldSubmitted: onSubmitted,
       validator: validator,
       textInputAction: textInputAction,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: const TextStyle(color: appMainTextColor),
       decoration: InputDecoration(
         hintText: hint,
@@ -57,11 +69,15 @@ class AppTextFormField extends StatelessWidget {
           borderRadius: BorderRadius.circular(12.0),
           borderSide: const BorderSide(color: appButtonColor, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
       ),
       obscureText: obscureText ?? false,
       readOnly: readOnly ?? false,
       enabled: enabled ?? true,
+      onTap: onTap,
     );
   }
 }
