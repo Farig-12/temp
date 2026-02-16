@@ -26,6 +26,11 @@ final createPostProvider =
       "Content-Type": "application/json",
     },
     body: jsonEncode({"content": content}),
+  ).timeout(
+    const Duration(seconds: 30),
+    onTimeout: () {
+      throw Exception('Request timeout: Post creation took too long');
+    },
   );
 
   if (response.statusCode != 200) {
@@ -82,6 +87,11 @@ final addCommentProvider =
       "Content-Type": "application/json",
     },
     body: jsonEncode({"comment": comment}),
+  ).timeout(
+    const Duration(seconds: 30),
+    onTimeout: () {
+      throw Exception('Request timeout: Comment creation took too long');
+    },
   );
 
   if (response.statusCode != 200) {
@@ -127,22 +137,9 @@ final myPostsProvider = FutureProvider<List<Post>>(
 // Provider to get all posts (depends on user ID)
 final allPostsProvider = FutureProvider<List<Post>>(
   (ref) async {
-    // Watch the current user ID
-    final userIdAsync = ref.watch(currentUserIdProvider);
-
-    // Get the user ID from the AsyncValue
-    final userId = userIdAsync.when(
-      data: (id) => id,
-      loading: () => throw Exception('Loading user...'),
-      error: (error, stack) => throw error,
-    );
-
-    if (userId == null) {
-      throw Exception('User not logged in');
-    }
-
+    // Get current user directly instead of watching stream to avoid race conditions
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.uid != userId) {
+    if (user == null) {
       throw Exception('User not logged in');
     }
 
@@ -184,22 +181,9 @@ final postProvider = FutureProvider.family<Post, String>(
       throw Exception('Post ID cannot be empty');
     }
 
-    // Watch the current user ID
-    final userIdAsync = ref.watch(currentUserIdProvider);
-
-    // Get the user ID from the AsyncValue
-    final userId = userIdAsync.when(
-      data: (id) => id,
-      loading: () => throw Exception('Loading user...'),
-      error: (error, stack) => throw error,
-    );
-
-    if (userId == null) {
-      throw Exception('User not logged in');
-    }
-
+    // Get current user directly instead of watching stream to avoid race conditions
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.uid != userId) {
+    if (user == null) {
       throw Exception('User not logged in');
     }
 

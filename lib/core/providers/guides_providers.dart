@@ -27,6 +27,11 @@ final createGuideProvider =
       "Content-Type": "application/json",
     },
     body: jsonEncode(guideData),
+  ).timeout(
+    const Duration(seconds: 30),
+    onTimeout: () {
+      throw Exception('Request timeout: Guide creation took too long');
+    },
   );
 
   if (response.statusCode != 200) {
@@ -83,6 +88,11 @@ final addGuideCommentProvider =
       "Content-Type": "application/json",
     },
     body: jsonEncode({"comment": comment}),
+  ).timeout(
+    const Duration(seconds: 30),
+    onTimeout: () {
+      throw Exception('Request timeout: Comment creation took too long');
+    },
   );
 
   if (response.statusCode != 200) {
@@ -125,20 +135,9 @@ final myGuidesProvider = FutureProvider<List<Guide>>(
 // Provider to get all guides (with optional search)
 final allGuidesProvider = FutureProvider.family<List<Guide>, String?>(
   (ref, searchQuery) async {
-    final userIdAsync = ref.watch(currentUserIdProvider);
-
-    final userId = userIdAsync.when(
-      data: (id) => id,
-      loading: () => throw Exception('Loading user...'),
-      error: (error, stack) => throw error,
-    );
-
-    if (userId == null) {
-      throw Exception('User not logged in');
-    }
-
+    // Get current user directly instead of watching stream to avoid race conditions
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.uid != userId) {
+    if (user == null) {
       throw Exception('User not logged in');
     }
 
@@ -179,20 +178,9 @@ final guideProvider = FutureProvider.family<Guide, String>(
       throw Exception('Guide ID cannot be empty');
     }
 
-    final userIdAsync = ref.watch(currentUserIdProvider);
-
-    final userId = userIdAsync.when(
-      data: (id) => id,
-      loading: () => throw Exception('Loading user...'),
-      error: (error, stack) => throw error,
-    );
-
-    if (userId == null) {
-      throw Exception('User not logged in');
-    }
-
+    // Get current user directly instead of watching stream to avoid race conditions
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.uid != userId) {
+    if (user == null) {
       throw Exception('User not logged in');
     }
 
