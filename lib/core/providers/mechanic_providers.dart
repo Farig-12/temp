@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mendlify/features/service_request/data/models/service_request_model.dart';
 
-// Provider to stream all pending service requests for mechanics
+// Provider to stream all service requests for mechanics
+// Shows pending requests for all mechanics and accepted requests for the logged-in mechanic
 final allServiceRequestsProvider =
     StreamProvider<List<ServiceRequestModel>>((ref) async* {
   // Wait for authentication to be fully initialized
@@ -19,16 +20,22 @@ final allServiceRequestsProvider =
     // User is authenticated, now stream service requests
     await for (final snapshot in FirebaseFirestore.instance
         .collection('service_requests')
-        .where('status', isEqualTo: 'pending')
         .snapshots()) {
-      final requests = snapshot.docs
+      final allRequests = snapshot.docs
           .map((doc) => ServiceRequestModel.fromMap(doc.data()))
           .toList();
 
-      // Sort in memory by createdAt (newest first)
-      requests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      // Filter: show pending requests OR accepted requests by this mechanic
+      final filteredRequests = allRequests.where((request) {
+        return request.status == 'pending' ||
+            (request.status == 'accepted' &&
+                request.acceptedMechanicId == user.uid);
+      }).toList();
 
-      yield requests;
+      // Sort in memory by createdAt (newest first)
+      filteredRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      yield filteredRequests;
     }
   }
 });

@@ -10,6 +10,7 @@ import '../../features/authentication/signup/presentation/ui/screens/signup_scre
 import '../../features/authentication/signup/presentation/ui/screens/user_signup_screen.dart';
 import '../../features/authentication/signup/presentation/ui/screens/mechanic_signup_screen.dart';
 import '../../features/mechanic/presentation/ui/screens/mechanic_home_screen.dart';
+import '../../features/service_request/presentation/ui/screens/my_service_requests_screen.dart';
 import '../../features/home/presentation/ui/screens/all_posts.dart';
 import '../../features/home/presentation/ui/screens/post_detail_screen.dart';
 import '../../features/home/presentation/ui/screens/profile_screen.dart';
@@ -111,6 +112,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: getRoutePath(mechanicHomeRoute),
         name: mechanicHomeRoute,
         builder: (context, state) => const MechanicHomeScreen(),
+      ),
+      GoRoute(
+        path: getRoutePath(myServiceRequestsRoute),
+        name: myServiceRequestsRoute,
+        builder: (context, state) => const MyServiceRequestsScreen(),
       ),
       GoRoute(
         path: getRoutePath(findGuideRoute),

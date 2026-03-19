@@ -6,9 +6,32 @@ class ServiceRequestFirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _collectionName = 'service_requests';
 
+  // Check if user has an active (pending) request
+  Future<bool> hasActiveRequest(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(_collectionName)
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      throw Exception('Failed to check active requests: $e');
+    }
+  }
+
   // Create a new service request
   Future<String> createServiceRequest(ServiceRequestModel request) async {
     try {
+      // Check if user already has an active request
+      final hasActive = await hasActiveRequest(request.userId);
+      if (hasActive) {
+        throw Exception(
+            'You already have an active service request. Please wait for it to be fulfilled or cancel it first.');
+      }
+
       final docRef = _firestore.collection(_collectionName).doc();
       final requestWithId = request.copyWith(requestId: docRef.id);
 
@@ -24,11 +47,25 @@ class ServiceRequestFirestoreService {
     return _firestore
         .collection(_collectionName)
         .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ServiceRequestModel.fromMap(doc.data()))
-            .toList());
+        .map((snapshot) {
+      final requests = snapshot.docs
+          .map((doc) => ServiceRequestModel.fromMap(doc.data()))
+          .toList();
+
+      // Auto-cancel expired requests (fire and forget)
+      for (var request in requests) {
+        if (request.isExpired) {
+          cancelServiceRequest(request.requestId).catchError((e) {
+            print('Error auto-canceling expired request: $e');
+          });
+        }
+      }
+
+      // Sort in memory to avoid Firestore index requirement
+      requests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return requests;
+    });
   }
 
   // Get a single service request by ID
@@ -55,6 +92,18 @@ class ServiceRequestFirestoreService {
       });
     } catch (e) {
       throw Exception('Failed to update service request status: $e');
+    }
+  }
+
+  // Cancel a service request (sets status to cancelled)
+  Future<void> cancelServiceRequest(String requestId) async {
+    try {
+      await _firestore.collection(_collectionName).doc(requestId).update({
+        'status': 'cancelled',
+        'updatedAt': Timestamp.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to cancel service request: $e');
     }
   }
 
@@ -150,6 +199,18 @@ class ServiceRequestFirestoreService {
       });
     } catch (e) {
       throw Exception('Failed to accept bid: $e');
+    }
+  }
+
+  // Mark service request as completed
+  Future<void> markRequestAsCompleted(String requestId) async {
+    try {
+      await _firestore.collection(_collectionName).doc(requestId).update({
+        'isCompleted': true,
+        'updatedAt': Timestamp.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to mark request as completed: $e');
     }
   }
 }

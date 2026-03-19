@@ -27,31 +27,45 @@
 }
 ```
 
-### 2. `service_requests/{requestId}/bids` (Subcollection - For Future Use)
+### 2. `service_requests/{requestId}/bids` (Subcollection - IMPLEMENTED)
 
 ```javascript
 {
   "bidId": "auto-generated-doc-id",
+  "requestId": "req123",  // Parent request ID for reference
   "mechanicId": "mech456",
   "mechanicName": "Ali Mechanic",
-  "mechanicRating": 4.5,
-  "bidAmount": 500,
-  "estimatedTime": "30 minutes",
-  "message": "I can fix this quickly for you",
-  "status": "pending", // pending, accepted, rejected
+  "mechanicPhone": "+923001234567",
+  "bidAmount": 500,       // Price in PKR
+  "message": "I can fix this quickly for you",  // Optional message from mechanic
+  "status": "pending",    // pending (default), accepted, rejected
   "createdAt": Timestamp
 }
 ```
 
+**Implementation Details:**
+- Mechanics can place bids on pending requests via "Place Bid" button
+- Bids are stored as a subcollection under each request
+- Users can view all bids on their requests in real-time
+- Multiple mechanics can bid on the same request
+- Bid includes mechanic's name, phone, and bid amount
+
 ## Firestore Indexes (Required for 10km radius queries)
 
-You'll need to create a composite index in Firebase Console:
+You'll need to create composite indexes in Firebase Console:
 
+### 1. Service Requests Index (for nearby queries)
 **Collection:** `service_requests`
 **Fields:**
 - status (Ascending)
 - location.lat (Ascending)
 - __name__ (Ascending)
+
+### 2. User Requests & Bids Indexes (NOT REQUIRED)
+All user-side queries have been optimized to avoid index requirements:
+- `getUserServiceRequests`: Uses only `where('userId')`, sorts in memory
+- `getBidsForRequest`: No filters, sorts in memory
+- This eliminates the need for composite indexes on these queries
 
 **Note:** The current implementation uses a simple bounding box approach for the 10km radius. For better performance with large datasets, consider using GeoFlutterFire or similar geohashing libraries.
 
@@ -95,7 +109,27 @@ service cloud.firestore {
 ## Usage Examples
 
 ### Client Side (Post Service Request)
-Already implemented in `service_request_screen.dart`
+Implemented in `service_request_screen.dart`
+- Users can create service requests with photos and location
+- Users can view their requests in `my_service_requests_screen.dart`
+- Users see live bids from mechanics on their requests
+
+### Mechanic Side (Place Bids on Requests)
+Implemented in `mechanic_home_screen.dart`
+- Mechanics view all pending service requests
+- Click "Place Bid" button to bid on a request
+- Enter bid amount (PKR) and optional message
+- Bids are sent to Firestore and appear live on user's screen
+
+### Viewing Bids (User Side)
+Implemented in `my_service_requests_screen.dart`
+```dart
+// Navigate from service request screen
+route.push(getRoutePath(myServiceRequestsRoute));
+
+// Bids are streamed live using bidsForRequestProvider
+final bids = ref.watch(bidsForRequestProvider(requestId));
+```
 
 ### Mechanic Side (Listen to Nearby Requests)
 ```dart
@@ -123,8 +157,10 @@ nearbyRequests.when(
 1. **Image Upload**: Implement Firebase Storage upload for photos
 2. **Push Notifications**: Notify mechanics when new requests are posted nearby
 3. **Real-time Updates**: Add StreamBuilder for request status changes
-4. **Bid Management**: Implement bidding UI for mechanics
+4. ✅ **Bid Management**: Implement bidding UI for mechanics (COMPLETED)
 5. **Distance Display**: Show distance from mechanic to request location
 6. **Filters**: Add category and distance filters for mechanics
-7. **Request History**: Show user's past requests
+7. ✅ **Request History**: Show user's past requests (COMPLETED)
 8. **Rating System**: Implement mechanic rating after service completion
+9. **Accept/Reject Bids**: Allow users to accept or reject bids
+10. **Payment Integration**: Add payment flow after accepting a bid

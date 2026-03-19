@@ -8,6 +8,7 @@ import 'package:mendlify/shared/models/guide.dart';
 import 'package:mendlify/shared/models/post.dart';
 import 'package:mendlify/shared/widgets/app_background.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 class GuideDetailScreen extends ConsumerStatefulWidget {
@@ -68,9 +69,30 @@ class _GuideDetailScreenState extends ConsumerState<GuideDetailScreen> {
     });
 
     try {
+      // Fetch username from Firestore to pass to backend (avoids slow backend Firestore call)
+      String? username;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(user.uid)
+              .get();
+
+          if (userDoc.exists) {
+            final userData = userDoc.data();
+            username = userData?['Name'] ?? userData?['name'];
+          }
+        } catch (e) {
+          print('Error fetching username from Firestore: $e');
+          // Continue without username - backend will handle fallback
+        }
+      }
+
       await ref.read(addGuideCommentProvider({
         'guideId': _actualGuideId!,
         'comment': _commentController.text.trim(),
+        if (username != null) 'username': username,
       }).future);
 
       // Invalidate ALL guides; immediately refresh

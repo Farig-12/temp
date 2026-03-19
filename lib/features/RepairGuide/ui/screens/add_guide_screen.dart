@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mendlify/core/route/go_router_provider.dart';
 import 'package:mendlify/core/utils/theme/app_colors.dart';
 import 'package:mendlify/shared/widgets/app_background.dart';
@@ -108,6 +110,26 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
     });
 
     try {
+      // Fetch username from Firestore to pass to backend (avoids slow backend Firestore call)
+      String? username;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(user.uid)
+              .get();
+
+          if (userDoc.exists) {
+            final userData = userDoc.data();
+            username = userData?['Name'] ?? userData?['name'];
+          }
+        } catch (e) {
+          print('Error fetching username from Firestore: $e');
+          // Continue without username - backend will handle fallback
+        }
+      }
+
       // Upload images to Firebase Storage
       List<String> imageUrls = [];
       if (_selectedImages.isNotEmpty) {
@@ -131,6 +153,7 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
             ? null
             : _mechanicController.text.trim(),
         'image_urls': imageUrls,
+        if (username != null) 'username': username,
       };
 
       // Create the guide

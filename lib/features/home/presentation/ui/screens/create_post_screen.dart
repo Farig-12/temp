@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mendlify/core/utils/theme/app_colors.dart';
 import 'package:mendlify/core/providers/posts_providers.dart';
 import '../../../../../core/route/go_router_provider.dart';
@@ -43,8 +44,28 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         throw Exception('User not logged in');
       }
 
-      // Create the post
-      await ref.read(createPostProvider(_contentController.text.trim()).future);
+      // Fetch username from Firestore to pass to backend (avoids slow backend Firestore call)
+      String? username;
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data();
+          username = userData?['Name'] ?? userData?['name'];
+        }
+      } catch (e) {
+        print('Error fetching username from Firestore: $e');
+        // Continue without username - backend will handle fallback
+      }
+
+      // Create the post with content and username
+      await ref.read(createPostProvider({
+        'content': _contentController.text.trim(),
+        if (username != null) 'username': username,
+      }).future);
 
       // Invalidate posts to refresh the list
       ref.invalidate(allPostsProvider);

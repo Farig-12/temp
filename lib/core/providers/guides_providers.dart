@@ -20,13 +20,16 @@ final createGuideProvider =
     throw Exception('Failed to get authentication token');
   }
 
+  final requestBody = Map<String, dynamic>.from(guideData);
+  requestBody['status'] = requestBody['status'] ?? 'pending';
+
   final response = await http.post(
     Uri.parse(ApiConfig.getEndpoint("guides")),
     headers: {
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
     },
-    body: jsonEncode(guideData),
+    body: jsonEncode(requestBody),
   ).timeout(
     const Duration(seconds: 30),
     onTimeout: () {
@@ -80,6 +83,7 @@ final addGuideCommentProvider =
 
   final guideId = params['guideId']!;
   final comment = params['comment']!;
+  final username = params['username'];
 
   final response = await http.post(
     Uri.parse(ApiConfig.getEndpoint("guides/$guideId/comment")),
@@ -87,7 +91,11 @@ final addGuideCommentProvider =
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
     },
-    body: jsonEncode({"comment": comment}),
+    body: jsonEncode({
+      "comment": comment,
+      "status": params['status'] ?? 'pending',
+      if (username != null && username.isNotEmpty) "username": username,
+    }),
   ).timeout(
     const Duration(seconds: 30),
     onTimeout: () {

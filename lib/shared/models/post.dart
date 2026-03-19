@@ -3,6 +3,7 @@ class Post {
   final String userId;
   final String username;
   final String content;
+  final String status;
   final DateTime createdAt;
   final List<Like> likes;
   final List<Comment> comments;
@@ -12,6 +13,7 @@ class Post {
     required this.userId,
     required this.username,
     required this.content,
+    required this.status,
     required this.createdAt,
     required this.likes,
     required this.comments,
@@ -23,6 +25,7 @@ class Post {
     String? userId,
     String? username,
     String? content,
+    String? status,
     DateTime? createdAt,
     List<Like>? likes,
     List<Comment>? comments,
@@ -32,6 +35,7 @@ class Post {
       userId: userId ?? this.userId,
       username: username ?? this.username,
       content: content ?? this.content,
+      status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
@@ -62,6 +66,7 @@ class Post {
       userId: json['user_id'] as String,
       username: json['username'] as String,
       content: json['content'] as String,
+      status: (json['status'] ?? 'pending') as String,
       createdAt: parseDate(json['created_at']),
       likes: (json['likes'] as List<dynamic>?)
               ?.map((like) => Like.fromJson(like as Map<String, dynamic>))
@@ -81,6 +86,7 @@ class Post {
       'user_id': userId,
       'username': username,
       'content': content,
+      'status': status,
       'created_at': createdAt.toIso8601String(),
       'likes': likes.map((like) => like.toJson()).toList(),
       'comments': comments.map((comment) => comment.toJson()).toList(),
@@ -127,12 +133,14 @@ class Comment {
   final String userId;
   final String username;
   final String comment;
+  final String status;
   final DateTime commentedAt;
 
   Comment({
     required this.userId,
     required this.username,
     required this.comment,
+    required this.status,
     required this.commentedAt,
   });
 
@@ -152,6 +160,7 @@ class Comment {
       userId: json['user_id'] as String,
       username: json['username'] as String,
       comment: json['comment'] as String,
+      status: (json['status'] ?? 'pending') as String,
       commentedAt: commentedAt,
     );
   }
@@ -161,6 +170,7 @@ class Comment {
       'user_id': userId,
       'username': username,
       'comment': comment,
+      'status': status,
       'commented_at': commentedAt.toIso8601String(),
     };
   }

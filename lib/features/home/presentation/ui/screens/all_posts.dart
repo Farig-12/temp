@@ -6,6 +6,7 @@ import 'package:mendlify/core/utils/theme/app_colors.dart';
 import 'package:mendlify/core/providers/posts_providers.dart';
 import 'package:mendlify/shared/models/post.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/providers/home_providers.dart';
 
@@ -118,9 +119,30 @@ class _AllPostsScreenState extends ConsumerState<AllPostsScreen> {
     }
 
     try {
+      // Fetch username from Firestore to pass to backend (avoids slow backend Firestore call)
+      String? username;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(user.uid)
+              .get();
+
+          if (userDoc.exists) {
+            final userData = userDoc.data();
+            username = userData?['Name'] ?? userData?['name'];
+          }
+        } catch (e) {
+          print('Error fetching username from Firestore: $e');
+          // Continue without username - backend will handle fallback
+        }
+      }
+
       await ref.read(addCommentProvider({
         'postId': postId,
         'comment': controller.text.trim(),
+        if (username != null) 'username': username,
       }).future);
 
       // Clear comment field

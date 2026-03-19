@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mendlify/core/utils/theme/app_colors.dart';
+import 'package:mendlify/core/route/go_router_provider.dart';
+import 'package:mendlify/core/route/route_names.dart';
 import 'package:mendlify/features/service_request/data/models/service_request_model.dart';
 import 'package:mendlify/features/service_request/presentation/providers/service_request_provider.dart';
 
@@ -194,6 +196,7 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
       // In production, you should upload images to Firebase Storage
       final List<String> photoUrls = []; // TODO: Upload images to storage
 
+      final now = DateTime.now();
       final request = ServiceRequestModel(
         requestId: '', // Will be set by Firestore
         userId: user.uid,
@@ -209,8 +212,10 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
           address: _currentAddress ?? 'Unknown',
         ),
         status: 'pending',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
+        expiresAt:
+            now.add(const Duration(minutes: 1)), // Auto-cancel after 1 minute
       );
 
       final service = ref.read(serviceRequestServiceProvider);
@@ -259,6 +264,8 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final route = ref.watch(goRouterProvider);
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -269,6 +276,18 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.list_alt,
+              color: appMainTextColor,
+            ),
+            tooltip: 'My Requests',
+            onPressed: () {
+              route.push(getRoutePath(myServiceRequestsRoute));
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

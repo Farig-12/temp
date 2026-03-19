@@ -4,6 +4,7 @@ class Guide {
   final String id;
   final String userId;
   final String username;
+  final String status;
   final String title;
   final String description;
   final String steps;
@@ -20,6 +21,7 @@ class Guide {
     required this.id,
     required this.userId,
     required this.username,
+    required this.status,
     required this.title,
     required this.description,
     required this.steps,
@@ -37,6 +39,7 @@ class Guide {
     String? id,
     String? userId,
     String? username,
+    String? status,
     String? title,
     String? description,
     String? steps,
@@ -53,6 +56,7 @@ class Guide {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       username: username ?? this.username,
+      status: status ?? this.status,
       title: title ?? this.title,
       description: description ?? this.description,
       steps: steps ?? this.steps,
@@ -87,6 +91,7 @@ class Guide {
       id: guideId,
       userId: json['user_id'] as String,
       username: json['username'] as String,
+      status: (json['status'] ?? 'pending') as String,
       title: json['title'] as String,
       description: json['description'] as String? ?? '',
       steps: json['steps'] as String? ?? '',
@@ -116,6 +121,7 @@ class Guide {
       'id': id,
       'user_id': userId,
       'username': username,
+      'status': status,
       'title': title,
       'description': description,
       'steps': steps,

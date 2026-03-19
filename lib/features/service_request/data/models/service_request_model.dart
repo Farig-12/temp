@@ -13,8 +13,10 @@ class ServiceRequestModel {
   final String status;
   final String? acceptedMechanicId;
   final double? acceptedBidAmount;
+  final bool isCompleted; // Whether the service is completed
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime expiresAt; // Request expires after 1 minute if not accepted
 
   ServiceRequestModel({
     required this.requestId,
@@ -29,9 +31,15 @@ class ServiceRequestModel {
     required this.status,
     this.acceptedMechanicId,
     this.acceptedBidAmount,
+    this.isCompleted = false,
     required this.createdAt,
     required this.updatedAt,
+    required this.expiresAt,
   });
+
+  // Check if request has expired
+  bool get isExpired =>
+      DateTime.now().isAfter(expiresAt) && status == 'pending';
 
   // Convert to Firestore document
   Map<String, dynamic> toMap() {
@@ -48,13 +56,25 @@ class ServiceRequestModel {
       'status': status,
       'acceptedMechanicId': acceptedMechanicId,
       'acceptedBidAmount': acceptedBidAmount,
+      'isCompleted': isCompleted,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'expiresAt': Timestamp.fromDate(expiresAt),
     };
   }
 
   // Create from Firestore document
   factory ServiceRequestModel.fromMap(Map<String, dynamic> map) {
+    DateTime createdAt = (map['createdAt'] as Timestamp).toDate();
+    DateTime expiresAt;
+
+    if (map['expiresAt'] != null) {
+      expiresAt = (map['expiresAt'] as Timestamp).toDate();
+    } else {
+      // Default to 1 minute from creation if not present
+      expiresAt = createdAt.add(const Duration(minutes: 1));
+    }
+
     return ServiceRequestModel(
       requestId: map['requestId'] ?? '',
       userId: map['userId'] ?? '',
@@ -68,8 +88,10 @@ class ServiceRequestModel {
       status: map['status'] ?? 'pending',
       acceptedMechanicId: map['acceptedMechanicId'],
       acceptedBidAmount: map['acceptedBidAmount']?.toDouble(),
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      isCompleted: map['isCompleted'] ?? false,
+      createdAt: createdAt,
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
+      expiresAt: expiresAt,
     );
   }
 
@@ -87,8 +109,10 @@ class ServiceRequestModel {
     String? status,
     String? acceptedMechanicId,
     double? acceptedBidAmount,
+    bool? isCompleted,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? expiresAt,
   }) {
     return ServiceRequestModel(
       requestId: requestId ?? this.requestId,
@@ -103,8 +127,10 @@ class ServiceRequestModel {
       status: status ?? this.status,
       acceptedMechanicId: acceptedMechanicId ?? this.acceptedMechanicId,
       acceptedBidAmount: acceptedBidAmount ?? this.acceptedBidAmount,
+      isCompleted: isCompleted ?? this.isCompleted,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
     );
   }
 }

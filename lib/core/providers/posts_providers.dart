@@ -8,7 +8,7 @@ import '../config/api_config.dart';
 
 // Create post provider
 final createPostProvider =
-    FutureProvider.family<void, String>((ref, content) async {
+    FutureProvider.family<void, Map<String, String>>((ref, params) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
     throw Exception('User not logged in');
@@ -19,14 +19,28 @@ final createPostProvider =
     throw Exception('Failed to get authentication token');
   }
 
-  final response = await http.post(
+  final content = params['content']!;
+  final username = params['username'];
+
+  // Prepare request body - include username if available to avoid backend Firestore call
+  final Map<String, dynamic> requestBody = {
+    "content": content,
+    "status": params['status'] ?? 'pending',
+  };
+  if (username != null && username.isNotEmpty) {
+    requestBody["username"] = username;
+  }
+
+  final response = await http
+      .post(
     Uri.parse(ApiConfig.getEndpoint("posts")),
     headers: {
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
     },
-    body: jsonEncode({"content": content}),
-  ).timeout(
+    body: jsonEncode(requestBody),
+  )
+      .timeout(
     const Duration(seconds: 30),
     onTimeout: () {
       throw Exception('Request timeout: Post creation took too long');
@@ -79,15 +93,27 @@ final addCommentProvider =
 
   final postId = params['postId']!;
   final comment = params['comment']!;
+  final username = params['username'];
 
-  final response = await http.post(
+  // Prepare request body - include username if available to avoid backend Firestore call
+  final Map<String, dynamic> requestBody = {
+    "comment": comment,
+    "status": params['status'] ?? 'pending',
+  };
+  if (username != null && username.isNotEmpty) {
+    requestBody["username"] = username;
+  }
+
+  final response = await http
+      .post(
     Uri.parse(ApiConfig.getEndpoint("posts/$postId/comment")),
     headers: {
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
     },
-    body: jsonEncode({"comment": comment}),
-  ).timeout(
+    body: jsonEncode(requestBody),
+  )
+      .timeout(
     const Duration(seconds: 30),
     onTimeout: () {
       throw Exception('Request timeout: Comment creation took too long');
