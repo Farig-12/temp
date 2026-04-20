@@ -38,7 +38,8 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   final ImagePicker _imagePicker = ImagePicker();
-  File? _idCardImageFile;
+  File? _idCardFrontImageFile;
+  File? _idCardBackImageFile;
 
   @override
   void dispose() {
@@ -55,7 +56,7 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
     super.dispose();
   }
 
-  Future<void> _pickIdCardImage() async {
+  Future<void> _pickIdCardImage({required bool isFront}) async {
     try {
       final pickedFile = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -63,7 +64,11 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
       );
       if (pickedFile != null) {
         setState(() {
-          _idCardImageFile = File(pickedFile.path);
+          if (isFront) {
+            _idCardFrontImageFile = File(pickedFile.path);
+          } else {
+            _idCardBackImageFile = File(pickedFile.path);
+          }
         });
       }
     } catch (e) {
@@ -83,10 +88,10 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
       return;
     }
 
-    if (_idCardImageFile == null) {
+    if (_idCardFrontImageFile == null || _idCardBackImageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please upload your ID card image'),
+          content: Text('Please upload both front and back ID card images'),
           backgroundColor: Colors.red,
         ),
       );
@@ -103,7 +108,8 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
         phone: _phoneController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-        idCardImageFile: _idCardImageFile,
+        idCardFrontImageFile: _idCardFrontImageFile,
+        idCardBackImageFile: _idCardBackImageFile,
       );
 
       await ref.read(mechanicSignupProvider(signupParams).future);
@@ -362,7 +368,7 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
                         ),
                         const SizedBox(height: 30),
 
-                        // ID Card Image Picker
+                        // ID Card Front Image Picker
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -370,7 +376,7 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
                             color: appCardColor,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: _idCardImageFile != null
+                              color: _idCardFrontImageFile != null
                                   ? appButtonColor
                                   : appTextColor.withOpacity(0.3),
                               width: 2,
@@ -379,21 +385,21 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
                           child: Column(
                             children: [
                               Icon(
-                                _idCardImageFile != null
+                                _idCardFrontImageFile != null
                                     ? Icons.check_circle
                                     : Icons.badge_outlined,
                                 size: 48,
-                                color: _idCardImageFile != null
+                                color: _idCardFrontImageFile != null
                                     ? appButtonColor
                                     : appTextColor,
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                _idCardImageFile != null
-                                    ? 'ID Card Uploaded'
-                                    : 'Upload ID Card',
+                                _idCardFrontImageFile != null
+                                    ? 'ID Card Front Uploaded'
+                                    : 'Upload ID Card Front',
                                 style: TextStyle(
-                                  color: _idCardImageFile != null
+                                  color: _idCardFrontImageFile != null
                                       ? appMainTextColor
                                       : appTextColor,
                                   fontSize: 16,
@@ -402,7 +408,7 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                _idCardImageFile != null
+                                _idCardFrontImageFile != null
                                     ? 'Tap to change'
                                     : 'Required for verification',
                                 style: TextStyle(
@@ -412,16 +418,94 @@ class _MechanicSignupScreenState extends ConsumerState<MechanicSignupScreen> {
                               ),
                               const SizedBox(height: 12),
                               ElevatedButton.icon(
-                                onPressed: _isLoading ? null : _pickIdCardImage,
+                                onPressed: _isLoading
+                                    ? null
+                                    : () => _pickIdCardImage(isFront: true),
                                 icon: const Icon(
                                   Icons.upload_file,
                                   color: Colors.white,
                                   size: 20,
                                 ),
                                 label: Text(
-                                  _idCardImageFile != null
-                                      ? 'Change Image'
-                                      : 'Choose Image',
+                                  _idCardFrontImageFile != null
+                                      ? 'Change Front Image'
+                                      : 'Choose Front Image',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: appButtonColor,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ID Card Back Image Picker
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: appCardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _idCardBackImageFile != null
+                                  ? appButtonColor
+                                  : appTextColor.withOpacity(0.3),
+                              width: 2,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                _idCardBackImageFile != null
+                                    ? Icons.check_circle
+                                    : Icons.badge_outlined,
+                                size: 48,
+                                color: _idCardBackImageFile != null
+                                    ? appButtonColor
+                                    : appTextColor,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _idCardBackImageFile != null
+                                    ? 'ID Card Back Uploaded'
+                                    : 'Upload ID Card Back',
+                                style: TextStyle(
+                                  color: _idCardBackImageFile != null
+                                      ? appMainTextColor
+                                      : appTextColor,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _idCardBackImageFile != null
+                                    ? 'Tap to change'
+                                    : 'Required for verification',
+                                style: TextStyle(
+                                  color: appTextColor.withOpacity(0.7),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () => _pickIdCardImage(isFront: false),
+                                icon: const Icon(
+                                  Icons.upload_file,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                label: Text(
+                                  _idCardBackImageFile != null
+                                      ? 'Change Back Image'
+                                      : 'Choose Back Image',
                                   style: const TextStyle(color: Colors.white),
                                 ),
                                 style: ElevatedButton.styleFrom(

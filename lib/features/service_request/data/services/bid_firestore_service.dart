@@ -9,6 +9,25 @@ class BidFirestoreService {
   // Create a new bid for a service request
   Future<String> createBid(BidModel bid) async {
     try {
+      final requestRef =
+          _firestore.collection(_requestsCollection).doc(bid.requestId);
+      final requestDoc = await requestRef.get();
+      if (!requestDoc.exists || requestDoc.data() == null) {
+        throw Exception('This service request is no longer available.');
+      }
+
+      final requestData = requestDoc.data()!;
+      final requestStatus = requestData['status'] as String? ?? 'pending';
+      final expiresAtRaw = requestData['expiresAt'];
+      final requestExpiresAt = expiresAtRaw is Timestamp
+          ? expiresAtRaw.toDate()
+          : DateTime.now().subtract(const Duration(seconds: 1));
+      final requestExpired = DateTime.now().isAfter(requestExpiresAt);
+
+      if (requestStatus != 'pending' || requestExpired) {
+        throw Exception('This service request has expired.');
+      }
+
       // Check if mechanic has already bid on this request within last 15 seconds
       final recentBid =
           await _getMechanicRecentBid(bid.requestId, bid.mechanicId);
@@ -31,7 +50,9 @@ class BidFirestoreService {
       await docRef.set(bidWithId.toMap());
       return docRef.id;
     } catch (e) {
-      if (e.toString().contains('Please wait')) {
+      if (e.toString().contains('Please wait') ||
+          e.toString().contains('expired') ||
+          e.toString().contains('no longer available')) {
         rethrow; // Re-throw our custom error message
       }
       throw Exception('Failed to create bid: $e');
@@ -53,12 +74,23 @@ class BidFirestoreService {
         return null;
       }
 
-      // Get the most recent bid
+      // Get the most recent non-expired pending bid.
       final bids =
           snapshot.docs.map((doc) => BidModel.fromMap(doc.data())).toList();
 
       bids.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return bids.first;
+
+      for (final bid in bids) {
+        if (bid.status == 'pending' && bid.isExpired) {
+          deleteBid(requestId, bid.bidId).catchError((_) {});
+          continue;
+        }
+        if (bid.status == 'pending') {
+          return bid;
+        }
+      }
+
+      return null;
     } catch (e) {
       return null;
     }
@@ -126,13 +158,26 @@ class BidFirestoreService {
       // Filter in memory to avoid index requirements
       final mechanicBids = snapshot.docs
           .where((doc) => doc.data()['mechanicId'] == mechanicId)
+          .map((doc) => BidModel.fromMap(doc.data()))
           .toList();
 
       if (mechanicBids.isEmpty) {
         return null;
       }
 
-      return BidModel.fromMap(mechanicBids.first.data());
+      mechanicBids.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      for (final bid in mechanicBids) {
+        if (bid.status == 'pending' && bid.isExpired) {
+          deleteBid(requestId, bid.bidId).catchError((_) {});
+          continue;
+        }
+        if (bid.status == 'pending') {
+          return bid;
+        }
+      }
+
+      return null;
     } catch (e) {
       throw Exception('Failed to get mechanic bid: $e');
     }

@@ -268,12 +268,19 @@ final mechanicSignupProvider =
 
       final uid = userCredential.user!.uid;
       final storageService = StorageService();
-      String? idCardUrl;
+      String? idCardFrontUrl;
+      String? idCardBackUrl;
 
-      // Upload ID card image to Supabase
-      if (params.idCardImageFile != null) {
-        idCardUrl = await storageService.uploadMechanicIdCard(
-          params.idCardImageFile!,
+      // Upload ID card images to Supabase
+      if (params.idCardFrontImageFile != null) {
+        idCardFrontUrl = await storageService.uploadMechanicIdCard(
+          params.idCardFrontImageFile!,
+        );
+      }
+
+      if (params.idCardBackImageFile != null) {
+        idCardBackUrl = await storageService.uploadMechanicIdCard(
+          params.idCardBackImageFile!,
         );
       }
 
@@ -282,7 +289,9 @@ final mechanicSignupProvider =
         'Name': params.name.trim(),
         'Email': params.email.trim(),
         'Phone': params.phone.trim(),
-        'idCardUrl': idCardUrl,
+        'idCardUrl': idCardFrontUrl,
+        'idCardFrontUrl': idCardFrontUrl,
+        'idCardBackUrl': idCardBackUrl,
         'role': 'mechanic',
         'created_at': FieldValue.serverTimestamp(),
         'approved': false, // Default to not approved
@@ -303,13 +312,15 @@ class MechanicSignupParams {
   final String phone;
   final String email;
   final String password;
-  final File? idCardImageFile;
+  final File? idCardFrontImageFile;
+  final File? idCardBackImageFile;
 
   MechanicSignupParams({
     required this.name,
     required this.phone,
     required this.email,
     required this.password,
-    this.idCardImageFile,
+    this.idCardFrontImageFile,
+    this.idCardBackImageFile,
   });
 }

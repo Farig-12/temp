@@ -545,11 +545,28 @@ class _GuideDetailScreenState extends ConsumerState<GuideDetailScreen> {
                 ),
                 child: TextField(
                   controller: _commentController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Add a comment...',
-                    hintStyle: TextStyle(color: Colors.white54),
-                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: appTextColor.withOpacity(0.5)),
+                    filled: true,
+                    fillColor: appCardColor.withOpacity(0.65),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide:
+                          BorderSide(color: appTextColor.withOpacity(0.25)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide:
+                          BorderSide(color: appTextColor.withOpacity(0.25)),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(24)),
+                      borderSide: BorderSide(color: appButtonColor),
+                    ),
                     isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
                   ),
                   style: const TextStyle(color: appMainTextColor),
                   onSubmitted: (_) => _addComment(),

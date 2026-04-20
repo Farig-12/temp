@@ -11,11 +11,38 @@ import 'package:mendlify/features/service_request/presentation/providers/rating_
 import 'package:intl/intl.dart';
 import 'dart:async';
 
-class MyServiceRequestsScreen extends ConsumerWidget {
+class MyServiceRequestsScreen extends ConsumerStatefulWidget {
   const MyServiceRequestsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyServiceRequestsScreen> createState() =>
+      _MyServiceRequestsScreenState();
+}
+
+class _MyServiceRequestsScreenState
+    extends ConsumerState<MyServiceRequestsScreen> {
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // provider to reflect request expiry immediately in UI.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (mounted && user != null) {
+        ref.invalidate(userServiceRequestsProvider(user.uid));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
@@ -79,7 +106,10 @@ class MyServiceRequestsScreen extends ConsumerWidget {
                   itemCount: requests.length,
                   itemBuilder: (context, index) {
                     final request = requests[index];
-                    return _RequestCard(request: request);
+                    return _RequestCard(
+                      key: ValueKey(request.requestId),
+                      request: request,
+                    );
                   },
                 ),
               );
@@ -129,7 +159,7 @@ class MyServiceRequestsScreen extends ConsumerWidget {
 class _RequestCard extends ConsumerStatefulWidget {
   final ServiceRequestModel request;
 
-  const _RequestCard({required this.request});
+  const _RequestCard({super.key, required this.request});
 
   @override
   ConsumerState<_RequestCard> createState() => _RequestCardState();
@@ -147,7 +177,6 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
         widget.request.isCompleted &&
         !_hasShownRatingDialog) {
       _hasShownRatingDialog = true;
-      // Show rating dialog after a short delay
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _showRatingDialog();
@@ -175,86 +204,110 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
 
     double? selectedRating;
 
-    final shouldRate = await showDialog<double?>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: appCardColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Rate Mechanic',
-            style: TextStyle(
-              color: appMainTextColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'How would you rate your experience with this mechanic?',
-                style: TextStyle(color: appTextColor),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final rating = (index + 1).toDouble();
-                  final isSelected =
-                      selectedRating != null && rating <= selectedRating!;
-                  return IconButton(
-                    icon: Icon(
-                      isSelected ? Icons.star : Icons.star_border,
-                      size: 40,
-                      color: Colors.amber,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        selectedRating = rating;
-                      });
-                    },
-                  );
-                }),
-              ),
-              if (selectedRating != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  '${selectedRating!.toInt()} Star${selectedRating! > 1 ? 's' : ''}',
-                  style: const TextStyle(
+    // Detect screen height to choose appropriate UI for small devices like Vivo
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenHeight < 600;
+
+    final shouldRate = isSmallScreen
+        ? await _showRatingBottomSheet(selectedRating)
+        : await showDialog<double?>(
+            context: context,
+            barrierDismissible: true,
+            builder: (dialogContext) => StatefulBuilder(
+              builder: (context, setState) => AlertDialog(
+                backgroundColor: appCardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Text(
+                  'Rate Mechanic',
+                  style: TextStyle(
                     color: appMainTextColor,
-                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(null),
-              child: Text(
-                'Skip',
-                style: TextStyle(color: appTextColor.withOpacity(0.7)),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'How would you rate your experience with this mechanic?',
+                        style: TextStyle(color: appTextColor),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final availableWidth = constraints.maxWidth - 24;
+                          final starSize =
+                              (availableWidth / 5).clamp(14.0, 22.0);
+
+                          return FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: List.generate(5, (index) {
+                                final rating = (index + 1).toDouble();
+                                final isSelected = selectedRating != null &&
+                                    rating <= selectedRating!;
+                                return IconButton(
+                                  constraints: BoxConstraints.tightFor(
+                                    width: starSize + 8,
+                                    height: starSize + 8,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  icon: Icon(
+                                    isSelected ? Icons.star : Icons.star_border,
+                                    size: starSize,
+                                    color: Colors.amber,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      selectedRating = rating;
+                                    });
+                                  },
+                                );
+                              }),
+                            ),
+                          );
+                        },
+                      ),
+                      if (selectedRating != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '${selectedRating!.toInt()} Star${selectedRating! > 1 ? 's' : ''}',
+                          style: const TextStyle(
+                            color: appMainTextColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(null),
+                    child: Text(
+                      'Skip',
+                      style: TextStyle(color: appTextColor.withOpacity(0.7)),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: selectedRating != null
+                        ? () => Navigator.of(dialogContext).pop(selectedRating)
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: appButtonColor,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Submit Rating'),
+                  ),
+                ],
               ),
             ),
-            ElevatedButton(
-              onPressed: selectedRating != null
-                  ? () => Navigator.of(dialogContext).pop(selectedRating)
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: appButtonColor,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Submit Rating'),
-            ),
-          ],
-        ),
-      ),
-    );
+          );
 
     if (shouldRate != null && mounted) {
       try {
@@ -284,6 +337,125 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
         }
       }
     }
+  }
+
+  Future<double?> _showRatingBottomSheet(double? initialRating) async {
+    double? selectedRating = initialRating;
+
+    return showModalBottomSheet<double?>(
+      context: context,
+      backgroundColor: appCardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            left: 16,
+            right: 16,
+            top: 16,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Rate Mechanic',
+                  style: TextStyle(
+                    color: appMainTextColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'How would you rate your experience?',
+                  style: TextStyle(color: appTextColor),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final availableWidth = constraints.maxWidth - 24;
+                    final starSize = (availableWidth / 5).clamp(12.0, 20.0);
+
+                    return FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(5, (index) {
+                          final rating = (index + 1).toDouble();
+                          final isSelected = selectedRating != null &&
+                              rating <= selectedRating!;
+                          return IconButton(
+                            constraints: BoxConstraints.tightFor(
+                              width: starSize + 6,
+                              height: starSize + 6,
+                            ),
+                            padding: EdgeInsets.zero,
+                            icon: Icon(
+                              isSelected ? Icons.star : Icons.star_border,
+                              size: starSize,
+                              color: Colors.amber,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                selectedRating = rating;
+                              });
+                            },
+                          );
+                        }),
+                      ),
+                    );
+                  },
+                ),
+                if (selectedRating != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${selectedRating!.toInt()} Star${selectedRating! > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: appMainTextColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(null),
+                        child: Text(
+                          'Skip',
+                          style:
+                              TextStyle(color: appTextColor.withOpacity(0.7)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: selectedRating != null
+                            ? () =>
+                                Navigator.of(sheetContext).pop(selectedRating)
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: appButtonColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Submit'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   IconData _getCategoryIcon(String category) {

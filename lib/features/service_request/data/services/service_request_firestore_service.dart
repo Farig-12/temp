@@ -49,18 +49,21 @@ class ServiceRequestFirestoreService {
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-      final requests = snapshot.docs
+      final allRequests = snapshot.docs
           .map((doc) => ServiceRequestModel.fromMap(doc.data()))
           .toList();
 
-      // Auto-cancel expired requests (fire and forget)
-      for (var request in requests) {
+      // Auto-delete expired pending requests and hide them.
+      for (var request in allRequests) {
         if (request.isExpired) {
-          cancelServiceRequest(request.requestId).catchError((e) {
-            print('Error auto-canceling expired request: $e');
+          deleteServiceRequest(request.requestId).catchError((e) {
+            print('Error auto-deleting expired request: $e');
           });
         }
       }
+
+      final requests =
+          allRequests.where((request) => !request.isExpired).toList();
 
       // Sort in memory to avoid Firestore index requirement
       requests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -108,18 +111,17 @@ class ServiceRequestFirestoreService {
   }
 
   // Stream for mechanics to listen to nearby service requests (within 10km)
-  // Note: For production, you should use GeoFlutterFire or similar for efficient geo queries
   Stream<List<ServiceRequestModel>> getNearbyServiceRequests({
     required double lat,
     required double lng,
     double radiusInKm = 10,
   }) {
     // Simple bounding box calculation
-    // 1 degree of latitude ≈ 111km
-    // 1 degree of longitude ≈ 111km * cos(latitude)
+    // 1 degree of latitude aprox 111km
+    // 1 degree of longitude apro 111km * cos(latitude)
     final latDelta = radiusInKm / 111;
     final lngDelta =
-        radiusInKm / (cos(111 * (lat * 0.0174533))); // Convert to radians
+        radiusInKm / (cos(111 * (lat * 0.0174533))); // Convert to radins
 
     final minLat = lat - latDelta;
     final maxLat = lat + latDelta;
@@ -137,6 +139,13 @@ class ServiceRequestFirestoreService {
       final requests = snapshot.docs
           .map((doc) => ServiceRequestModel.fromMap(doc.data()))
           .where((request) {
+        if (request.isExpired) {
+          deleteServiceRequest(request.requestId).catchError((e) {
+            print('Error auto-deleting expired nearby request: $e');
+          });
+          return false;
+        }
+
         final requestLng = request.location.lng;
         if (requestLng < minLng || requestLng > maxLng) return false;
 

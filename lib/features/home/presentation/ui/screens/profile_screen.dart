@@ -421,7 +421,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   _ProfileListTile(
                     icon: Icons.history_outlined,
                     label: 'Diagnosis History',
-                    onTap: () {},
+                    onTap: () {
+                      route.push(getRoutePath(expertSystemRoute));
+                    },
                   ),
                 ],
               ),

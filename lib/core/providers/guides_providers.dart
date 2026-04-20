@@ -23,14 +23,16 @@ final createGuideProvider =
   final requestBody = Map<String, dynamic>.from(guideData);
   requestBody['status'] = requestBody['status'] ?? 'pending';
 
-  final response = await http.post(
+  final response = await http
+      .post(
     Uri.parse(ApiConfig.getEndpoint("guides")),
     headers: {
       "Authorization": "Bearer $token",
       "Content-Type": "application/json",
     },
     body: jsonEncode(requestBody),
-  ).timeout(
+  )
+      .timeout(
     const Duration(seconds: 30),
     onTimeout: () {
       throw Exception('Request timeout: Guide creation took too long');
@@ -85,7 +87,8 @@ final addGuideCommentProvider =
   final comment = params['comment']!;
   final username = params['username'];
 
-  final response = await http.post(
+  final response = await http
+      .post(
     Uri.parse(ApiConfig.getEndpoint("guides/$guideId/comment")),
     headers: {
       "Authorization": "Bearer $token",
@@ -96,7 +99,8 @@ final addGuideCommentProvider =
       "status": params['status'] ?? 'pending',
       if (username != null && username.isNotEmpty) "username": username,
     }),
-  ).timeout(
+  )
+      .timeout(
     const Duration(seconds: 30),
     onTimeout: () {
       throw Exception('Request timeout: Comment creation took too long');
@@ -129,10 +133,14 @@ final myGuidesProvider = FutureProvider<List<Guide>>(
 
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body) as List<dynamic>;
-      return jsonList.map((json) {
-        final guideJson = json as Map<String, dynamic>;
-        return Guide.fromJson(guideJson);
-      }).toList();
+      return jsonList
+          .map((json) {
+            final guideJson = json as Map<String, dynamic>;
+            return Guide.fromJson(guideJson);
+          })
+          .where((guide) =>
+              guide.status == 'verified' || guide.status == 'pending')
+          .toList();
     } else {
       throw Exception(
           "Failed to fetch my guides: ${response.statusCode} - ${response.body}");
@@ -168,10 +176,14 @@ final allGuidesProvider = FutureProvider.family<List<Guide>, String?>(
 
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body) as List<dynamic>;
-      return jsonList.map((json) {
-        final guideJson = json as Map<String, dynamic>;
-        return Guide.fromJson(guideJson);
-      }).toList();
+      return jsonList
+          .map((json) {
+            final guideJson = json as Map<String, dynamic>;
+            return Guide.fromJson(guideJson);
+          })
+          .where((guide) =>
+              guide.status == 'verified' || guide.status == 'pending')
+          .toList();
     } else {
       throw Exception(
           "Failed to fetch guides: ${response.statusCode} - ${response.body}");

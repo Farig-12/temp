@@ -18,6 +18,7 @@ const String findGuideRoute = 'findGuide';
 const String addGuideRoute = 'addGuide';
 const String guideDetailRoute = 'guideDetail';
 const String myGuidesRoute = 'myGuides';
+const String expertSystemRoute = 'expertSystem';
 const String forgotPasswordEnterEmailRoute = 'forgotPasswordEnterEmail';
 
 //home

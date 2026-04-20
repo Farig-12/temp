@@ -571,11 +571,29 @@ class _PostCard extends ConsumerWidget {
                       style: const TextStyle(color: appMainTextColor),
                       decoration: InputDecoration(
                         hintText: 'Write a comment...',
-                        hintStyle: const TextStyle(color: appTextColor),
-                        border: InputBorder.none,
+                        hintStyle:
+                            TextStyle(color: appTextColor.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: appCardColor.withOpacity(0.65),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              BorderSide(color: appTextColor.withOpacity(0.25)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              BorderSide(color: appTextColor.withOpacity(0.25)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: appButtonColor),
+                        ),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                       ),
                       onSubmitted: (_) => onCommentSubmit(),
                       maxLines: null,

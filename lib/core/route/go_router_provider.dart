@@ -17,6 +17,7 @@ import '../../features/home/presentation/ui/screens/profile_screen.dart';
 import '../../features/home/presentation/ui/screens/vendor_screen.dart';
 import '../../features/home/presentation/ui/screens/create_post_screen.dart';
 import '../../features/home/presentation/ui/screens/my_posts_screen.dart';
+import '../../features/home/presentation/ui/screens/expert_system_screen.dart';
 import '../../features/authentication/signup/presentation/ui/screens/bike_info_screen.dart';
 import '../../features/authentication/signup/presentation/ui/screens/edit_personal_info_screen.dart';
 import '../../features/startup/presentation/ui/screens/choice_screen.dart';
@@ -173,6 +174,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: getRoutePath(myPostsRoute),
         name: myPostsRoute,
         builder: (context, state) => const MyPostsScreen(),
+      ),
+      GoRoute(
+        path: getRoutePath(expertSystemRoute),
+        name: expertSystemRoute,
+        builder: (context, state) => const ExpertSystemScreen(),
       ),
       GoRoute(
         path: getRoutePath(bikeInfoRoute),

@@ -84,15 +84,31 @@ class _FindGuideScreenState extends ConsumerState<FindGuideScreen> {
                   decoration: InputDecoration(
                     hintText: 'Search Issue...',
                     hintStyle: TextStyle(
-                      color: appTextColor.withOpacity(0.6), // lighter hint text
+                      color: appTextColor.withOpacity(0.5), // lighter hint text
                       fontSize: 16,
                     ),
-                    border: InputBorder.none,
+                    filled: true,
+                    fillColor: appCardColor.withOpacity(0.65),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          BorderSide(color: appTextColor.withOpacity(0.25)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          BorderSide(color: appTextColor.withOpacity(0.25)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: appButtonColor),
+                    ),
                     prefixIcon: Icon(
                       Icons.search,
                       color: appTextColor.withOpacity(0.7), // subtle icon color
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14.0),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 14),
                   ),
                 ),
               ),

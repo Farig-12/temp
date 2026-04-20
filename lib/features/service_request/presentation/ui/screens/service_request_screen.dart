@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mendlify/core/utils/theme/app_colors.dart';
@@ -38,13 +36,10 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
     'other',
   ];
 
-  List<File> _selectedImages = [];
   Position? _currentPosition;
   String? _currentAddress;
   bool _isLoadingLocation = false;
   bool _isSubmitting = false;
-
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -77,7 +72,7 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
         }
       }
     } catch (e) {
-      // Handle error silently
+      //
     }
   }
 
@@ -140,33 +135,6 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
     }
   }
 
-  Future<void> _pickImages() async {
-    try {
-      final List<XFile> images = await _picker.pickMultiImage(
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-
-      if (images.length + _selectedImages.length > 5) {
-        _showError('You can only select up to 5 images');
-        return;
-      }
-
-      setState(() {
-        _selectedImages.addAll(images.map((xFile) => File(xFile.path)));
-      });
-    } catch (e) {
-      _showError('Failed to pick images: $e');
-    }
-  }
-
-  void _removeImage(int index) {
-    setState(() {
-      _selectedImages.removeAt(index);
-    });
-  }
-
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -192,13 +160,12 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
 
       final userName = userDoc.data()?['Name'] ?? 'Unknown User';
 
-      // For now, we'll use empty photo URLs
       // In production, you should upload images to Firebase Storage
       final List<String> photoUrls = []; // TODO: Upload images to storage
 
       final now = DateTime.now();
       final request = ServiceRequestModel(
-        requestId: '', // Will be set by Firestore
+        requestId: '',
         userId: user.uid,
         userName: userName,
         userPhone: _phoneController.text.trim(),
@@ -214,8 +181,7 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
         status: 'pending',
         createdAt: now,
         updatedAt: now,
-        expiresAt:
-            now.add(const Duration(minutes: 1)), // Auto-cancel after 1 minute
+        expiresAt: now.add(const Duration(minutes: 1)), // 1 minute
       );
 
       final service = ref.read(serviceRequestServiceProvider);
@@ -237,7 +203,6 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
     _problemController.clear();
     _descriptionController.clear();
     setState(() {
-      _selectedImages.clear();
       _selectedCategory = 'engine';
     });
   }
@@ -347,13 +312,6 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
                 },
               ),
               const SizedBox(height: 20),
-
-              // Image Picker
-              _buildImagePicker(),
-              const SizedBox(height: 20),
-
-              // Selected Images
-              if (_selectedImages.isNotEmpty) _buildSelectedImages(),
               const SizedBox(height: 24),
 
               // Submit Button
@@ -519,84 +477,6 @@ class _ServiceRequestScreenState extends ConsumerState<ServiceRequestScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildImagePicker() {
-    return InkWell(
-      onTap: _selectedImages.length < 5 ? _pickImages : null,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: appCardColor.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: appAccentColor.withOpacity(0.3),
-            style: BorderStyle.solid,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.add_photo_alternate, color: appAccentColor),
-            const SizedBox(width: 8),
-            Text(
-              'Add Photos (${_selectedImages.length}/5)',
-              style: const TextStyle(
-                color: appMainTextColor,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSelectedImages() {
-    return SizedBox(
-      height: 100,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _selectedImages.length,
-        itemBuilder: (context, index) {
-          return Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    _selectedImages[index],
-                    width: 100,
-                    height: 100,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: GestureDetector(
-                    onTap: () => _removeImage(index),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
     );
   }
 

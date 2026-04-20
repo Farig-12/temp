@@ -14,11 +14,35 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 
-class MechanicHomeScreen extends ConsumerWidget {
+class MechanicHomeScreen extends ConsumerStatefulWidget {
   const MechanicHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MechanicHomeScreen> createState() => _MechanicHomeScreenState();
+}
+
+class _MechanicHomeScreenState extends ConsumerState<MechanicHomeScreen> {
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    //prevent manual reload ig....
+    _refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        ref.invalidate(allServiceRequestsProvider);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final route = ref.watch(goRouterProvider);
     final serviceRequestsAsync = ref.watch(allServiceRequestsProvider);
 
@@ -166,10 +190,16 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
   }
 
   void _startCooldownTimer() {
+    _cooldownTimer?.cancel();
     _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted && !_canPlaceBid) {
         setState(() {}); // Refresh UI to update countdown
       } else if (_canPlaceBid) {
+        if (mounted) {
+          setState(() {
+            _lastBidTime = null;
+          });
+        }
         timer.cancel(); // Stop timer when cooldown is over
       }
     });
@@ -194,8 +224,14 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
           _lastBidTime = recentBid.createdAt;
           _isChecking = false;
         });
+        if (!_canPlaceBid) {
+          _startCooldownTimer();
+        }
       } else {
-        setState(() => _isChecking = false);
+        setState(() {
+          _lastBidTime = null;
+          _isChecking = false;
+        });
       }
     } catch (e) {
       setState(() => _isChecking = false);
@@ -452,8 +488,7 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
             const SizedBox(height: 16),
 
             // Action buttons based on status
-            if (isAcceptedByMe) ...[
-              // Location and Complete buttons for accepted requests
+            if (isAcceptedByMe && !widget.request.isCompleted) ...[
               Row(
                 children: [
                   Expanded(
@@ -493,8 +528,7 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
                   ),
                 ],
               ),
-            ] else ...[
-              // Place Bid Button with cooldown for pending requests
+            ] else if (widget.request.status == 'pending') ...[
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -527,7 +561,7 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
     );
   }
 
-  // Open Google Maps with client's location
+  // Open Google Maps with location
   Future<void> _openGoogleMaps(double lat, double lng, String address) async {
     final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
     final uri = Uri.parse(url);
@@ -557,7 +591,7 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
     }
   }
 
-  // Mark service as completed
+  // Mark as completed
   Future<void> _markAsCompleted(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -628,7 +662,7 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
     final messageController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final bidService =
-        ref.read(bidServiceProvider); // Read service BEFORE dialog
+        ref.read(bidServiceProvider); // Reading service befor dialog box
 
     showDialog(
       context: context,
@@ -665,9 +699,21 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
                 style: const TextStyle(color: appMainTextColor),
                 decoration: InputDecoration(
                   labelText: 'Bid Amount (PKR)',
-                  labelStyle: TextStyle(color: appTextColor.withOpacity(0.7)),
+                  hintText: 'e.g. 2500',
+                  hintStyle: TextStyle(color: appTextColor.withOpacity(0.45)),
+                  labelStyle: TextStyle(color: appTextColor.withOpacity(0.72)),
+                  floatingLabelStyle: const TextStyle(
+                    color: appButtonColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                   prefixIcon:
                       const Icon(Icons.attach_money, color: appButtonColor),
+                  filled: true,
+                  fillColor: appCardColor.withOpacity(0.55),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 16,
+                  ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide:
@@ -704,8 +750,21 @@ class _ServiceRequestCardState extends ConsumerState<_ServiceRequestCard> {
                 style: const TextStyle(color: appMainTextColor),
                 decoration: InputDecoration(
                   labelText: 'Message (Optional)',
-                  labelStyle: TextStyle(color: appTextColor.withOpacity(0.7)),
+                  hintText:
+                      'Add a short note about timeline or service details',
+                  hintStyle: TextStyle(color: appTextColor.withOpacity(0.45)),
+                  labelStyle: TextStyle(color: appTextColor.withOpacity(0.72)),
+                  floatingLabelStyle: const TextStyle(
+                    color: appButtonColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                   alignLabelWithHint: true,
+                  filled: true,
+                  fillColor: appCardColor.withOpacity(0.55),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide:
