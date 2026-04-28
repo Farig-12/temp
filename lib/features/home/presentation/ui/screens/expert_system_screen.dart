@@ -176,6 +176,20 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
               (data['symptom_groups'] as List<dynamic>? ?? <dynamic>[])
                   .cast<Map<String, dynamic>>();
 
+          final symptomLookup = <String, String>{};
+          for (final group in groups) {
+            final symptoms =
+                (group['symptoms'] as List<dynamic>? ?? <dynamic>[])
+                    .cast<Map<String, dynamic>>();
+            for (final symptom in symptoms) {
+              final code = symptom['code']?.toString() ?? '';
+              final text = symptom['text']?.toString() ?? code;
+              if (code.isNotEmpty && text.isNotEmpty) {
+                symptomLookup[code] = text;
+              }
+            }
+          }
+
           if (groups.isEmpty) {
             return const Center(
               child: Text(
@@ -216,7 +230,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
                   child: CircularProgressIndicator(color: appButtonColor),
                 ),
               if (_diagnosisResult != null)
-                _buildResultSection(_diagnosisResult!),
+                _buildResultSection(_diagnosisResult!, symptomLookup),
             ],
           );
         },
@@ -302,7 +316,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                '$idx. [${isSelected ? 'X' : ' '}] $code - $text',
+                '$idx. [${isSelected ? 'X' : ' '}] $text',
                 style: const TextStyle(color: appMainTextColor),
               ),
             );
@@ -374,10 +388,22 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
     );
   }
 
-  Widget _buildResultSection(Map<String, dynamic> result) {
+  Widget _buildResultSection(
+    Map<String, dynamic> result,
+    Map<String, String> symptomLookup,
+  ) {
     final topMatch = result['top_match'] as Map<String, dynamic>?;
-    final items = (result['results'] as List<dynamic>? ?? <dynamic>[])
-        .cast<Map<String, dynamic>>();
+    final selectedCodes =
+        (result['selected_symptom_codes'] as List<dynamic>? ?? <dynamic>[])
+            .map((value) => value.toString())
+            .toList();
+    final selectedSymptoms = selectedCodes
+        .map((code) => symptomLookup[code] ?? code)
+        .where((text) => text.isNotEmpty)
+        .toList();
+    final score = ((topMatch?['score'] ?? 0.0) as num).toDouble();
+    final diagnosisText = topMatch?['diagnosis']?.toString().trim() ?? '';
+    final tentativeCost = topMatch?['cost']?.toString().trim() ?? '';
 
     return Container(
       width: double.infinity,
@@ -390,7 +416,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Diagnosis Results',
+            'Most Likely Problem',
             style: TextStyle(
               color: appTextColor,
               fontSize: 18,
@@ -398,36 +424,103 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          if (topMatch != null)
+          if (diagnosisText.isNotEmpty)
             Text(
-              "Top match: ${topMatch['diagnosis_code']} (${((((topMatch['score'] ?? 0.0) as num) * 100)).toStringAsFixed(1)}%)",
-              style: const TextStyle(color: appMainTextColor),
+              diagnosisText,
+              style: const TextStyle(
+                color: appMainTextColor,
+                fontSize: 15,
+                height: 1.35,
+              ),
             ),
           const SizedBox(height: 12),
-          ...items.map((item) {
-            final score = ((item['score'] ?? 0.0) as num).toDouble();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "${item['diagnosis_code']} - ${item['diagnosis']}",
-                    style: const TextStyle(
-                      color: appTextColor,
-                      fontWeight: FontWeight.w600,
-                    ),
+          if (topMatch != null)
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricTile(
+                    label: 'Confidence',
+                    value: '${(score * 100).toStringAsFixed(1)}%',
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "Score: ${(score * 100).toStringAsFixed(1)}% | Domain: ${item['domain']}",
-                    style:
-                        const TextStyle(color: appMainTextColor, fontSize: 13),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildMetricTile(
+                    label: 'Tentative cost',
+                    value:
+                        tentativeCost.isNotEmpty ? tentativeCost : 'Not listed',
                   ),
-                ],
+                ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          if (selectedSymptoms.isNotEmpty) ...[
+            const Text(
+              'Symptoms used',
+              style: TextStyle(
+                color: appTextColor,
+                fontWeight: FontWeight.w700,
               ),
-            );
-          }),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: selectedSymptoms
+                  .map(
+                    (symptom) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: appBackgroundColor,
+                        borderRadius: BorderRadius.circular(999),
+                        border:
+                            Border.all(color: appButtonColor.withOpacity(0.25)),
+                      ),
+                      child: Text(
+                        symptom,
+                        style: const TextStyle(color: appMainTextColor),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricTile({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: appBackgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: appButtonColor.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: appSecondaryTextColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: appTextColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
