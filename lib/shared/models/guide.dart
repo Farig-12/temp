@@ -12,6 +12,7 @@ class Guide {
   final String? partsTools;
   final String? cost;
   final String? mechanicRecommendation;
+  final String? youtubeLink;
   final List<String> imageUrls;
   final DateTime createdAt;
   final List<Like> likes;
@@ -29,6 +30,7 @@ class Guide {
     this.partsTools,
     this.cost,
     this.mechanicRecommendation,
+    this.youtubeLink,
     required this.imageUrls,
     required this.createdAt,
     required this.likes,
@@ -47,6 +49,7 @@ class Guide {
     String? partsTools,
     String? cost,
     String? mechanicRecommendation,
+    String? youtubeLink,
     List<String>? imageUrls,
     DateTime? createdAt,
     List<Like>? likes,
@@ -63,7 +66,9 @@ class Guide {
       solution: solution ?? this.solution,
       partsTools: partsTools ?? this.partsTools,
       cost: cost ?? this.cost,
-      mechanicRecommendation: mechanicRecommendation ?? this.mechanicRecommendation,
+      mechanicRecommendation:
+          mechanicRecommendation ?? this.mechanicRecommendation,
+      youtubeLink: youtubeLink ?? this.youtubeLink,
       imageUrls: imageUrls ?? this.imageUrls,
       createdAt: createdAt ?? this.createdAt,
       likes: likes ?? this.likes,
@@ -99,6 +104,7 @@ class Guide {
       partsTools: json['parts_tools'] as String?,
       cost: json['cost'] as String?,
       mechanicRecommendation: json['mechanic_recommendation'] as String?,
+      youtubeLink: json['youtube_link'] as String?,
       imageUrls: (json['image_urls'] as List<dynamic>?)
               ?.map((url) => url as String)
               .toList() ??
@@ -129,6 +135,7 @@ class Guide {
       'parts_tools': partsTools,
       'cost': cost,
       'mechanic_recommendation': mechanicRecommendation,
+      'youtube_link': youtubeLink,
       'image_urls': imageUrls,
       'created_at': createdAt.toIso8601String(),
       'likes': likes.map((like) => like.toJson()).toList(),
@@ -136,4 +143,3 @@ class Guide {
     };
   }
 }
-

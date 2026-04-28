@@ -26,6 +26,7 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
   late TextEditingController _partsController;
   late TextEditingController _costController;
   late TextEditingController _mechanicController;
+  late TextEditingController _youtubeLinkController;
 
   final ImagePicker _imagePicker = ImagePicker();
   final StorageService _storageService = StorageService();
@@ -42,6 +43,7 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
     _partsController = TextEditingController();
     _costController = TextEditingController();
     _mechanicController = TextEditingController();
+    _youtubeLinkController = TextEditingController();
   }
 
   @override
@@ -53,7 +55,41 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
     _partsController.dispose();
     _costController.dispose();
     _mechanicController.dispose();
+    _youtubeLinkController.dispose();
     super.dispose();
+  }
+
+  bool _isValidYoutubeUrl(String value) {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return false;
+    }
+
+    final host = uri.host.toLowerCase();
+    if (host == 'youtu.be') {
+      return uri.pathSegments.isNotEmpty && uri.pathSegments.first.isNotEmpty;
+    }
+
+    final isYoutubeHost =
+        host == 'youtube.com' || host.endsWith('.youtube.com');
+    if (!isYoutubeHost) {
+      return false;
+    }
+
+    if (uri.path == '/watch') {
+      return uri.queryParameters['v']?.isNotEmpty == true;
+    }
+
+    if (uri.pathSegments.isNotEmpty) {
+      final firstSegment = uri.pathSegments.first;
+      return (firstSegment == 'shorts' ||
+              firstSegment == 'embed' ||
+              firstSegment == 'live') &&
+          uri.pathSegments.length > 1 &&
+          uri.pathSegments[1].isNotEmpty;
+    }
+
+    return false;
   }
 
   Future<void> _pickImages() async {
@@ -99,6 +135,17 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please describe the problem'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final youtubeLink = _youtubeLinkController.text.trim();
+    if (youtubeLink.isNotEmpty && !_isValidYoutubeUrl(youtubeLink)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid YouTube link'),
           backgroundColor: Colors.red,
         ),
       );
@@ -152,6 +199,7 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
         'mechanic_recommendation': _mechanicController.text.trim().isEmpty
             ? null
             : _mechanicController.text.trim(),
+        'youtube_link': youtubeLink.isEmpty ? null : youtubeLink,
         'image_urls': imageUrls,
         if (username != null) 'username': username,
       };
@@ -274,6 +322,12 @@ class _AddGuideScreenState extends ConsumerState<AddGuideScreen> {
                     _CustomInputField(
                       controller: _costController,
                       hintText: 'Cost of Repair (if any)',
+                    ),
+
+                    // YouTube Video Link
+                    _CustomInputField(
+                      controller: _youtubeLinkController,
+                      hintText: 'YouTube Video Link (optional)',
                     ),
 
                     // Image Selection

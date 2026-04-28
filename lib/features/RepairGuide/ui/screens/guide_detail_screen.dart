@@ -10,6 +10,7 @@ import 'package:mendlify/shared/widgets/app_background.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class GuideDetailScreen extends ConsumerStatefulWidget {
   final String? guideId;
@@ -57,6 +58,22 @@ class _GuideDetailScreenState extends ConsumerState<GuideDetailScreen> {
       return '${difference.inDays} day(s) ago';
     } else {
       return DateFormat('MMM d, y').format(date);
+    }
+  }
+
+  Future<void> _openYoutubeLink(String link) async {
+    final uri = Uri.tryParse(link);
+    if (uri == null) {
+      throw Exception('Invalid YouTube link');
+    }
+
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched) {
+      throw Exception('Could not open YouTube link');
     }
   }
 
@@ -238,6 +255,10 @@ class _GuideDetailScreenState extends ConsumerState<GuideDetailScreen> {
         const SizedBox(height: 15),
         if (guide.cost != null && guide.cost!.isNotEmpty)
           _buildStatRow('Cost:', guide.cost!),
+        if (guide.youtubeLink != null && guide.youtubeLink!.isNotEmpty) ...[
+          const Divider(color: Colors.white24, height: 30, thickness: 1),
+          _buildYoutubeLinkSection(guide.youtubeLink!),
+        ],
         const Divider(color: Colors.white24, height: 30, thickness: 1),
         Row(
           children: [
@@ -328,6 +349,58 @@ class _GuideDetailScreenState extends ConsumerState<GuideDetailScreen> {
         _buildDetailSection(
           'Mechanic Recommendation:',
           guide.mechanicRecommendation!,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildYoutubeLinkSection(String youtubeLink) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('Video', appButtonColor),
+        const SizedBox(height: 4),
+        InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () async {
+            try {
+              await _openYoutubeLink(youtubeLink);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Could not open video: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: appMainTextColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: appButtonColor.withOpacity(0.5)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.play_circle_fill, color: appButtonColor),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Watch on YouTube',
+                    style: TextStyle(
+                      color: appMainTextColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(Icons.open_in_new, color: Colors.white70, size: 18),
+              ],
+            ),
+          ),
         ),
       ],
     );
