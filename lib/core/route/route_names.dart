@@ -25,3 +25,4 @@ const String forgotPasswordEnterEmailRoute = 'forgotPasswordEnterEmail';
 const String homeRoute = 'home';
 const String mechanicHomeRoute = 'mechanicHome';
 const String myServiceRequestsRoute = 'myServiceRequests';
+const String serviceRequestRoute = 'serviceRequest';

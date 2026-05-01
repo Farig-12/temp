@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/providers/expert_system_providers.dart';
+import '../../../../../core/route/go_router_provider.dart';
+import '../../../../../core/route/route_names.dart';
 import '../../../../../core/utils/theme/app_colors.dart';
 
 class ExpertSystemScreen extends ConsumerStatefulWidget {
@@ -13,31 +15,25 @@ class ExpertSystemScreen extends ConsumerStatefulWidget {
 
 class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
   final Set<String> _observedSymptoms = <String>{};
-  final TextEditingController _optionController = TextEditingController();
 
   int _groupIndex = 0;
   int _batchStart = 0;
+  int? _selectedBatchOption;
   bool _isSubmitting = false;
   Map<String, dynamic>? _diagnosisResult;
-
-  @override
-  void dispose() {
-    _optionController.dispose();
-    super.dispose();
-  }
 
   Future<void> _runDiagnosis() async {
     if (_observedSymptoms.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text(
-                'No symptoms selected. Please select at least one option 1-4.')),
+            content: Text('Select at least one symptom to diagnose.')),
       );
       return;
     }
 
     setState(() {
       _isSubmitting = true;
+      _selectedBatchOption = null;
     });
 
     try {
@@ -77,9 +73,18 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
       setState(() {
         _groupIndex += 1;
         _batchStart = 0;
+        _selectedBatchOption = null;
       });
     } else {
       _runDiagnosis();
+    }
+  }
+
+  void _advanceBatch(List<Map<String, dynamic>> symptoms, int groupCount) {
+    _batchStart += 4;
+    if (_batchStart >= symptoms.length && _groupIndex < groupCount - 1) {
+      _groupIndex += 1;
+      _batchStart = 0;
     }
   }
 
@@ -116,14 +121,8 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
         }
 
         _diagnosisResult = null;
-        _batchStart += 4;
-
-        if (_batchStart >= symptoms.length) {
-          if (_groupIndex < groups.length - 1) {
-            _groupIndex += 1;
-            _batchStart = 0;
-          }
-        }
+        _selectedBatchOption = null;
+        _advanceBatch(symptoms, groups.length);
       });
       return;
     }
@@ -139,24 +138,39 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Enter an option number between 1 and 6.')),
+      const SnackBar(content: Text('Select a symptom option from the list.')),
     );
   }
 
-  void _submitOption(List<Map<String, dynamic>> groups) {
-    final raw = _optionController.text.trim();
-    final option = int.tryParse(raw);
-
-    _optionController.clear();
-
-    if (option == null) {
+  void _submitSelectedOption(List<Map<String, dynamic>> groups) {
+    if (_selectedBatchOption == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid number (1-6).')),
+        const SnackBar(content: Text('Choose one symptom before continuing.')),
       );
       return;
     }
 
-    _handleOption(option, groups);
+    _handleOption(_selectedBatchOption!, groups);
+  }
+
+  void _goToServiceRequest() {
+    ref.read(goRouterProvider).push(getRoutePath(serviceRequestRoute));
+  }
+
+  void _openRecommendedGuides(String diagnosisQuery) {
+    final query = diagnosisQuery.trim();
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Diagnosis is empty. Run diagnosis first.')),
+      );
+      return;
+    }
+
+    final encoded = Uri.encodeQueryComponent(query);
+    ref
+        .read(goRouterProvider)
+        .push('${getRoutePath(findGuideRoute)}?q=$encoded');
   }
 
   @override
@@ -221,9 +235,9 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
               const SizedBox(height: 12),
               _buildBatchCard(batch),
               const SizedBox(height: 12),
-              _buildOptionInput(groups),
+              _buildSelectionActions(groups, hasBatchItems: batch.isNotEmpty),
               const SizedBox(height: 12),
-              _buildOptionLegend(),
+              _buildFlowHint(),
               const SizedBox(height: 16),
               if (_isSubmitting)
                 const Center(
@@ -297,13 +311,13 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Select observed symptoms using option number:',
+            'Select observed symptom',
             style: TextStyle(color: appTextColor, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           if (batch.isEmpty)
             const Text(
-              'No more symptoms in this domain. Enter 5 for next domain or 6 to diagnose.',
+              'No more symptoms in this domain. Use Skip Domain or End Q&A.',
               style: TextStyle(color: appMainTextColor),
             ),
           ...batch.asMap().entries.map((entry) {
@@ -313,11 +327,37 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
             final text = symptom['text']?.toString() ?? code;
             final isSelected = _observedSymptoms.contains(code);
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                '$idx. [${isSelected ? 'X' : ' '}] $text',
-                style: const TextStyle(color: appMainTextColor),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: appBackgroundColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _selectedBatchOption == idx
+                      ? appButtonColor.withOpacity(0.45)
+                      : appTextColor.withOpacity(0.08),
+                ),
+              ),
+              child: RadioListTile<int>(
+                value: idx,
+                groupValue: _selectedBatchOption,
+                activeColor: appButtonColor,
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedBatchOption = value;
+                        });
+                      },
+                title: Text(
+                  '$idx. $text',
+                  style: const TextStyle(color: appMainTextColor),
+                ),
+                secondary: isSelected
+                    ? const Icon(Icons.check_circle,
+                        color: appButtonColor, size: 18)
+                    : null,
               ),
             );
           }),
@@ -326,42 +366,72 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
     );
   }
 
-  Widget _buildOptionInput(List<Map<String, dynamic>> groups) {
-    return Row(
+  Widget _buildSelectionActions(
+    List<Map<String, dynamic>> groups, {
+    required bool hasBatchItems,
+  }) {
+    return Column(
       children: [
-        Expanded(
-          child: TextField(
-            controller: _optionController,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: appTextColor),
-            decoration: InputDecoration(
-              hintText: 'Enter option number (1-6)',
-              hintStyle: const TextStyle(color: appSecondaryTextColor),
-              filled: true,
-              fillColor: appCardColor,
-              border: OutlineInputBorder(
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _isSubmitting || !hasBatchItems
+                ? null
+                : () => _submitSelectedOption(groups),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: appButtonColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
               ),
             ),
-            onSubmitted: (_) => _submitOption(groups),
+            icon: const Icon(Icons.check_circle_outline),
+            label: const Text('Confirm Selection'),
           ),
         ),
-        const SizedBox(width: 10),
-        ElevatedButton(
-          onPressed: _isSubmitting ? null : () => _submitOption(groups),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: appButtonColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          ),
-          child: const Text('Submit'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed:
+                    _isSubmitting ? null : () => _moveToNextDomain(groups),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: appTextColor,
+                  side: BorderSide(color: appTextColor.withOpacity(0.25)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.skip_next_outlined),
+                label: const Text('Skip Domain'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _runDiagnosis,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: appButtonColor.withOpacity(0.9),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.task_alt_outlined),
+                label: const Text('End Q&A'),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildOptionLegend() {
+  Widget _buildFlowHint() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -373,15 +443,15 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Options',
+            'How this works',
             style: TextStyle(color: appTextColor, fontWeight: FontWeight.w700),
           ),
           SizedBox(height: 8),
-          Text('1-4: Toggle symptom in current batch',
+          Text('Select one option and tap Confirm Selection',
               style: TextStyle(color: appMainTextColor)),
-          Text('5: Switch to next symptom group',
+          Text('Skip Domain jumps to the next symptom group',
               style: TextStyle(color: appMainTextColor)),
-          Text('6: End QnA and run diagnosis',
+          Text('End Q&A runs diagnosis with current selections',
               style: TextStyle(color: appMainTextColor)),
         ],
       ),
@@ -403,7 +473,10 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
         .toList();
     final score = ((topMatch?['score'] ?? 0.0) as num).toDouble();
     final diagnosisText = topMatch?['diagnosis']?.toString().trim() ?? '';
+    final diagnosisDomain = topMatch?['domain']?.toString().trim() ?? '';
     final tentativeCost = topMatch?['cost']?.toString().trim() ?? '';
+    final diagnosisQuery =
+        diagnosisText.isNotEmpty ? diagnosisText : diagnosisDomain;
 
     return Container(
       width: double.infinity,
@@ -411,6 +484,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
       decoration: BoxDecoration(
         color: appCardColor,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: appButtonColor.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,13 +499,9 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
           ),
           const SizedBox(height: 10),
           if (diagnosisText.isNotEmpty)
-            Text(
-              diagnosisText,
-              style: const TextStyle(
-                color: appMainTextColor,
-                fontSize: 15,
-                height: 1.35,
-              ),
+            _buildDiagnosisAccordion(
+              diagnosisText: diagnosisText,
+              domainText: diagnosisDomain,
             ),
           const SizedBox(height: 12),
           if (topMatch != null)
@@ -441,6 +511,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
                   child: _buildMetricTile(
                     label: 'Confidence',
                     value: '${(score * 100).toStringAsFixed(1)}%',
+                    icon: Icons.percent_rounded,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -449,6 +520,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
                     label: 'Tentative cost',
                     value:
                         tentativeCost.isNotEmpty ? tentativeCost : 'Not listed',
+                    icon: Icons.payments_outlined,
                   ),
                 ),
               ],
@@ -488,12 +560,113 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
                   .toList(),
             ),
           ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _goToServiceRequest,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: appButtonColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.car_repair_outlined),
+                  label: const Text('Find Mechanics'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: diagnosisQuery.isEmpty
+                      ? null
+                      : () => _openRecommendedGuides(diagnosisQuery),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: appTextColor,
+                    side: BorderSide(color: appTextColor.withOpacity(0.25)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.menu_book_outlined),
+                  label: const Text('Recommended Guides'),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildMetricTile({required String label, required String value}) {
+  Widget _buildDiagnosisAccordion({
+    required String diagnosisText,
+    required String domainText,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: appBackgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: appButtonColor.withOpacity(0.22)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          iconColor: appTextColor,
+          collapsedIconColor: appTextColor,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          title: const Row(
+            children: [
+              Icon(Icons.medical_information_outlined, color: appButtonColor),
+              SizedBox(width: 8),
+              Text(
+                'Diagnosis',
+                style: TextStyle(
+                  color: appTextColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          subtitle: domainText.isEmpty
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    domainText,
+                    style: const TextStyle(
+                      color: appSecondaryTextColor,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+          children: [
+            Text(
+              diagnosisText,
+              style: const TextStyle(
+                color: appMainTextColor,
+                fontSize: 15,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricTile({
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -501,24 +674,41 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: appButtonColor.withOpacity(0.18)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: appSecondaryTextColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Container(
+            height: 34,
+            width: 34,
+            decoration: BoxDecoration(
+              color: appButtonColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(icon, color: appButtonColor, size: 18),
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: appTextColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: appSecondaryTextColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: appTextColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

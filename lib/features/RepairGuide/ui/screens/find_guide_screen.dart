@@ -9,7 +9,9 @@ import 'package:mendlify/shared/models/guide.dart';
 import 'package:intl/intl.dart';
 
 class FindGuideScreen extends ConsumerStatefulWidget {
-  const FindGuideScreen({super.key});
+  final String? initialQuery;
+
+  const FindGuideScreen({super.key, this.initialQuery});
 
   @override
   ConsumerState<FindGuideScreen> createState() => _FindGuideScreenState();
@@ -18,6 +20,16 @@ class FindGuideScreen extends ConsumerStatefulWidget {
 class _FindGuideScreenState extends ConsumerState<FindGuideScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = (widget.initialQuery ?? '').trim();
+    if (initial.isNotEmpty) {
+      _searchController.text = initial;
+      _searchQuery = initial;
+    }
+  }
 
   @override
   void dispose() {
