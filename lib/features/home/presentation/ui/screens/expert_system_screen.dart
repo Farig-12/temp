@@ -20,6 +20,8 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
   int _batchStart = 0;
   int? _selectedBatchOption;
   bool _isSubmitting = false;
+  bool _isSubmittingFeedback = false;
+  String? _feedbackSubmittedForDiagnosisCode;
   Map<String, dynamic>? _diagnosisResult;
 
   Future<void> _runDiagnosis() async {
@@ -50,6 +52,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
 
       setState(() {
         _diagnosisResult = result;
+        _feedbackSubmittedForDiagnosisCode = null;
       });
     } catch (e) {
       if (!mounted) {
@@ -155,6 +158,69 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
 
   void _goToServiceRequest() {
     ref.read(goRouterProvider).push(getRoutePath(serviceRequestRoute));
+  }
+
+  Future<void> _submitFeedback(bool wasCorrect) async {
+    final topMatch = _diagnosisResult?['top_match'] as Map<String, dynamic>?;
+    final diagnosisCode = topMatch?['diagnosis_code']?.toString().trim() ?? '';
+
+    if (diagnosisCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Run diagnosis first before giving feedback.')),
+      );
+      return;
+    }
+
+    if (_feedbackSubmittedForDiagnosisCode == diagnosisCode ||
+        _isSubmittingFeedback) {
+      return;
+    }
+
+    setState(() {
+      _isSubmittingFeedback = true;
+    });
+
+    try {
+      await ref.read(
+        expertSystemFeedbackProvider({
+          'diagnosis_code': diagnosisCode,
+          'was_correct': wasCorrect,
+        }).future,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _feedbackSubmittedForDiagnosisCode = diagnosisCode;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            wasCorrect
+                ? 'Feedback saved. Confidence will improve next time.'
+                : 'Feedback saved. The system will lower this match slightly next time.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save feedback: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingFeedback = false;
+        });
+      }
+    }
   }
 
   void _openRecommendedGuides(String diagnosisQuery) {
@@ -463,6 +529,7 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
     Map<String, String> symptomLookup,
   ) {
     final topMatch = result['top_match'] as Map<String, dynamic>?;
+    final diagnosisCode = topMatch?['diagnosis_code']?.toString().trim() ?? '';
     final selectedCodes =
         (result['selected_symptom_codes'] as List<dynamic>? ?? <dynamic>[])
             .map((value) => value.toString())
@@ -477,6 +544,9 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
     final tentativeCost = topMatch?['cost']?.toString().trim() ?? '';
     final diagnosisQuery =
         diagnosisText.isNotEmpty ? diagnosisText : diagnosisDomain;
+    final canSubmitFeedback = diagnosisCode.isNotEmpty &&
+        _feedbackSubmittedForDiagnosisCode != diagnosisCode &&
+        !_isSubmittingFeedback;
 
     return Container(
       width: double.infinity,
@@ -597,6 +667,80 @@ class _ExpertSystemScreenState extends ConsumerState<ExpertSystemScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: appBackgroundColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: appButtonColor.withOpacity(0.18)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Was this diagnosis correct?',
+                  style: TextStyle(
+                    color: appTextColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: canSubmitFeedback
+                            ? () => _submitFeedback(true)
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: appApproveColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.thumb_up_alt_outlined),
+                        label: const Text('Yes'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: canSubmitFeedback
+                            ? () => _submitFeedback(false)
+                            : null,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: appButtonColor,
+                          side: BorderSide(
+                              color: appButtonColor.withOpacity(0.35)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.thumb_down_alt_outlined),
+                        label: const Text('No'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_feedbackSubmittedForDiagnosisCode == diagnosisCode)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: Text(
+                      'Feedback recorded.',
+                      style: TextStyle(
+                        color: appSecondaryTextColor,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),

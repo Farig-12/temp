@@ -76,3 +76,41 @@ final expertSystemDiagnoseProvider =
     return jsonDecode(response.body) as Map<String, dynamic>;
   },
 );
+
+final expertSystemFeedbackProvider =
+    FutureProvider.family<Map<String, dynamic>, Map<String, dynamic>>(
+  (ref, payload) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('User not logged in');
+    }
+
+    final token = await user.getIdToken();
+    if (token == null) {
+      throw Exception('Failed to get authentication token');
+    }
+
+    final response = await http
+        .post(
+      Uri.parse(ApiConfig.getEndpoint('expert-system/feedback')),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(payload),
+    )
+        .timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        throw Exception('Request timeout while saving expert-system feedback');
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+          'Failed to save feedback: ${response.statusCode} - ${response.body}');
+    }
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  },
+);
